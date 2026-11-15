@@ -171,7 +171,7 @@ Glossary:
 2. **FM-R14.2** WHEN a unit ID does not match `^U[0-9]{3,}$` or a defect ID does not match `^D[0-9]{3,}$` THE SYSTEM SHALL return a validation error.
 3. **FM-R14.3** WHEN any git revision argument starts with `-` THE SYSTEM SHALL reject it before running git.
 4. **FM-R14.4** WHEN `role` is not one of `moderator`, `reader`, `inspector-logic`, `inspector-interfaces`, `scribe`, `author`, or is not allowed for the tool, THE SYSTEM SHALL return `ROLE_NOT_ALLOWED` and record the attempt nowhere.
-5. **FM-R14.5** WHEN a tool fails THE SYSTEM SHALL return a result with `isError: true` whose text is the JSON `{ "code", "message", "details" }`.
+5. **FM-R14.5** WHEN a tool fails THE SYSTEM SHALL return a result with `isError: true` whose text is the JSON `{ "code", "message", "details" }`; WHEN the arguments do not match the tool's advertised input schema, the MCP SDK rejects them before fagan-mcp runs, and the result is `isError: true` with the SDK's `Input validation error` text (see design.md "MCP server").
 6. **FM-R14.6** WHEN a tool succeeds THE SYSTEM SHALL return `structuredContent` and the same object as a JSON text block.
 7. **FM-R14.7** WHEN the server starts outside a git repository, or a tool runs where `git rev-parse --show-toplevel` fails, THE SYSTEM SHALL return `NOT_A_GIT_REPO`.
 8. **FM-R14.8** WHEN the server lists its tools THE SYSTEM SHALL list exactly the nine tools, each with a non-empty description and an input schema.

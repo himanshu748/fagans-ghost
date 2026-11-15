@@ -174,6 +174,16 @@ APIs used, as shown in the SDK v1.x docs ([server.md](https://github.com/modelco
 - Contract test: `Client` from `@modelcontextprotocol/sdk/client/index.js` and `StdioClientTransport` from `@modelcontextprotocol/sdk/client/stdio.js` (parameters `command`, `args`, `cwd`, `env`, `stderr`).
 - Logs go to stderr only; stdout carries the protocol (FM-R15.1).
 
+Decisions made while building the server (FEAT-003):
+
+- `src/service/service.ts` holds one function per tool. The server (`src/server/server.ts`) and the CLI only map arguments and results.
+- Input schemas carry the ID patterns (`^insp-[0-9]{4}$`, `^U[0-9]{3,}$`, `^D[0-9]{3,}$`), lengths, enums and defaults, so Kiro's model sees them in `tools/list`. The SDK validates arguments against that schema before the handler runs and, in 1.32.2, returns a failure as `{ isError: true, content: [{ type: "text", text: "Input validation error: ..." }] }` (`dist/esm/server/mcp.js`, `validateToolInput` and `createToolError`). So a schema violation such as `inspection_id: "../x"` comes back as that SDK text, not as fagan's JSON body; it still never reaches the file system (FM-R14.1). The contract test asserts this form.
+- `role` is a plain string (1 to 64 characters) in every schema, with the allowed roles in its description. A literal or enum would make the SDK reject a wrong role with its own text, and FM-R2.1 and FM-R14.4 require `ROLE_NOT_ALLOWED`.
+- Errors that are not `FaganError` (bugs, I/O failures) come back as `{ code: "INTERNAL_ERROR", message, details: {} }`, with the stack on stderr.
+- `metrics` returns the `metrics.json` object as stored (camelCase keys, `schemaVersion: "fagan-metrics/1"`), so the tool result and the file never differ. Other tools return the snake_case shapes of PLAN.md section 6.
+- The diff for `open_inspection` and `hook suggest` always leaves out `.fagan/inspections` and `.fagan/.lock`, through git pathspecs `. :(exclude)<path>` after `--` ([gitglossary, pathspec](https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddefpathspecapathspec)). Without this, a later inspection would inspect the earlier inspection's own files, and `hook suggest` would count them.
+- No `outputSchema` is registered; results are plain `structuredContent` objects with the same JSON as the text block.
+
 Kiro registration (FEAT-003), per [MCP configuration](https://kiro.dev/docs/mcp/configuration/): `.kiro/settings/mcp.json` with `{ "mcpServers": { "fagan": { "command": "node", "args": ["packages/fagan-mcp/dist/cli.js", "serve"], "env": {}, "disabled": false } } }`. No `autoApprove`.
 
 ## CLI
@@ -189,13 +199,20 @@ Kiro registration (FEAT-003), per [MCP configuration](https://kiro.dev/docs/mcp/
 | `fagan abandon <id> --reason <text>` | 0 or 1 |
 | `fagan export <id> [--format json] [--format txt]` | 0 or 1 |
 
+CLI details (FEAT-003):
+
+- `hook gate` reads the command from `tool_input.command`, then `tool_input.cmd` (string values only), until experiment E2 confirms the real field. It uses the payload's `cwd` when it is a non-empty string, else the process working directory. Outside a git repository, or with no `.fagan/inspections/`, a commit is allowed. On a block it prints the inspection IDs and blocking defect IDs, as `insp-0001: D001, D003`, to both stdout and stderr.
+- `hook suggest` prints at most one line and swallows every error (message on stderr), so it always exits 0.
+- `follow-up` and `export` run the same service functions as the `follow_up` and `export_report` tools. The CLI acts for the human, who is the Author: `follow-up` passes the role check as `author`, and both commands record their events as `cli:follow-up` / `cli:export` with role `human`. `abandon` records `cli:abandon` with role `human`.
+- Failed commands other than the hooks print `{ "code", "message" }` to stderr and exit 1; usage errors print the usage text and exit 1.
+
 Commit gate matcher (`core/gate.ts`): split the command on `&&`, `||`, `;`, `|` and newlines; in each segment drop leading `NAME=value` words; if the program is `git` (or ends in `/git`), skip global options (`-c <k=v>`, `-C <path>`, `--git-dir=<p>`, `--work-tree=<p>`, `--no-pager`, `-p`, `--paginate`, and other words starting with `-`, taking one argument for `-c` and `-C`); the next word is the subcommand. It is a commit if that word is `commit`. Quoted strings are tokenised so `git log --grep "commit"` and `echo "git commit"` are not commits. Known gap: commands hidden inside `sh -c '...'` or aliases are not detected; documented in README.
 
 ## Testing strategy
 
 - Unit tests (`test/*.test.ts`): diff parser cases, splitter, checklist selection, state machine, store atomic write and lock, git adapter against a temp repo under `os.tmpdir()` (removed after), runner timeout, report.txt width.
-- Contract test (`test/contract.test.ts`): spawns the built `dist/cli.js serve` over stdio in a temp git repo, so `npm run build` must run before `npm test` (root `npm test` is run after `npm run build` in CI and locally; the test fails with a clear message if `dist/cli.js` is missing).
-- CLI tests (`test/cli.test.ts`): STDIN payloads into `hook gate` and `hook suggest`.
+- Contract test (`test/contract.test.ts`): spawns the built `dist/cli.js serve` over stdio in a temp git repo. The package's `test` script is `npm run build && vitest run`, so `npm test` (root or package) always tests a fresh build; running `vitest` directly needs a prior `npm run build`, and the test fails with a clear message if `dist/cli.js` is missing.
+- CLI tests (`test/cli.test.ts`): STDIN payloads into the built `hook gate` and `hook suggest`, plus `follow-up`, `abandon` and `export`. The store for these tests is set up in-process through `src/service`, against a temp git repo (`test/fixture.ts`).
 
 ## Correctness properties
 

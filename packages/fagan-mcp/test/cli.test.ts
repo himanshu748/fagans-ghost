@@ -1,0 +1,247 @@
+// CLI tests: hook payloads on STDIN into the built `fagan` CLI, plus the
+// follow-up, abandon and export commands (task 12.2). The store is set up
+// in-process through the same services the MCP server uses.
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { systemClock } from "../src/clock.js";
+import { readEvents } from "../src/store/store.js";
+import {
+  abandonService,
+  closeMeetingService,
+  followUpService,
+  getPacketService,
+  logDefectService,
+  openInspection,
+  recordReadingService,
+  recordReworkService,
+  type ServiceContext,
+} from "../src/service/service.js";
+import { CLI, assertBuilt, fixtureConfig, fixtureRepo } from "./fixture.js";
+
+interface Run {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+function fagan(cwd: string, args: string[], input = ""): Run {
+  const r = spawnSync(process.execPath, [CLI, ...args], { cwd, input, encoding: "utf8", timeout: 60_000 });
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
+const payload = (command: unknown, extra: Record<string, unknown> = {}): string =>
+  JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "shell", tool_input: { command }, ...extra });
+
+const repos: Array<{ cleanup: () => void }> = [];
+function repo(config = fixtureConfig): string {
+  const r = fixtureRepo(config);
+  repos.push(r);
+  return r.path;
+}
+
+const ID = "insp-0001";
+const ctxFor = (root: string): ServiceContext => ({ cwd: root, clock: systemClock });
+
+async function toMeeting(root: string): Promise<void> {
+  const ctx = ctxFor(root);
+  await openInspection(ctx, { role: "moderator", title: "Add sub()", base: "HEAD", head: "WORKTREE", include_untracked: true, author_overview: null });
+  const packet = { inspection_id: ID, unit_ids: null, cursor: null, limit: 20 };
+  await getPacketService(ctx, { ...packet, role: "inspector-logic", phase: "preparation" });
+  await getPacketService(ctx, { ...packet, role: "moderator", phase: "meeting" });
+  for (const unit_id of ["U001", "U002"]) {
+    await recordReadingService(ctx, { inspection_id: ID, role: "reader", unit_id, paraphrase: `Reading of ${unit_id}.` });
+  }
+}
+
+/** insp-0001 in Rework with one open major, D001. */
+async function toReworkWithMajor(root: string): Promise<void> {
+  await toMeeting(root);
+  const ctx = ctxFor(root);
+  await logDefectService(ctx, {
+    inspection_id: ID,
+    role: "scribe",
+    unit_id: "U002",
+    file: "src/calc.ts",
+    line_start: 6,
+    line_end: 6,
+    side: "new",
+    type: "logic",
+    class: null,
+    severity: "major",
+    raised_by: "inspector-logic",
+    description: "sub adds 1 to the difference.",
+    checklist_item_id: null,
+  });
+  await closeMeetingService(ctx, { inspection_id: ID, role: "moderator", notes: null });
+}
+
+beforeAll(() => {
+  assertBuilt();
+});
+
+afterEach(() => {
+  while (repos.length > 0) repos.pop()?.cleanup();
+});
+
+describe("fagan hook gate", () => {
+  it("FM-R16.1 FM-R16.3 blocks only git commit while a major is open", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+
+    const status = fagan(root, ["hook", "gate"], payload("git status"));
+    expect(status).toEqual({ status: 0, stdout: "", stderr: "" });
+    expect(fagan(root, ["hook", "gate"], payload('echo "git commit" && git log --grep commit')).status).toBe(0);
+
+    for (const cmd of ["git commit -m x", "git -c user.name=x commit -am y", "npm test && git commit -m z", "cd sub; git --no-pager commit"]) {
+      const r = fagan(root, ["hook", "gate"], payload(cmd));
+      expect(r.status, cmd).toBe(2);
+      expect(r.stdout).toContain("insp-0001: D001");
+      expect(r.stderr).toContain("insp-0001: D001");
+    }
+    const viaCmd = fagan(root, ["hook", "gate"], JSON.stringify({ tool_input: { cmd: "git commit -m x" } }));
+    expect(viaCmd.status).toBe(2);
+  });
+
+  it("FM-R15.2 FM-R16.3 uses the payload cwd when present", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    expect(fagan(tmpdir(), ["hook", "gate"], payload("git commit -m x", { cwd: root })).status).toBe(2);
+    expect(fagan(tmpdir(), ["hook", "gate"], payload("git commit -m x")).status).toBe(0);
+  });
+
+  it("FM-R16.4 allows a commit when there is no store or no open major", async () => {
+    const fresh = repo();
+    expect(fagan(fresh, ["hook", "gate"], payload("git commit -m x"))).toEqual({ status: 0, stdout: "", stderr: "" });
+
+    const waived = repo();
+    await toReworkWithMajor(waived);
+    await recordReworkService(ctxFor(waived), {
+      inspection_id: ID,
+      role: "author",
+      items: [{ defect_id: "D001", resolution: "waived", reason: "Accepted: the caller compensates for it." }],
+    });
+    expect(fagan(waived, ["hook", "gate"], payload("git commit -m x")).status).toBe(0);
+
+    const abandoned = repo();
+    await toReworkWithMajor(abandoned);
+    await abandonService(ctxFor(abandoned), { inspection_id: ID, reason: "Superseded by a smaller change." });
+    expect(fagan(abandoned, ["hook", "gate"], payload("git commit -m x")).status).toBe(0);
+  });
+
+  it("FM-R16.5 allows with a warning when the payload is not usable", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    for (const input of ["not json", "", "[1,2]", JSON.stringify({ tool_input: { command: 42 } }), JSON.stringify({ other: 1 })]) {
+      const r = fagan(root, ["hook", "gate"], input);
+      expect(r.status, input).toBe(0);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain("warning");
+    }
+  });
+
+  it("FM-R16.6 blocks a commit when the store cannot be read", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    writeFileSync(join(root, ".fagan", "inspections", ID, "defects.json"), "{ not json");
+    const r = fagan(root, ["hook", "gate"], payload("git commit -m x"));
+    expect(r.status).toBe(2);
+    expect(r.stdout).toContain("STORE_CORRUPT");
+    expect(fagan(root, ["hook", "gate"], payload("ls")).status).toBe(0);
+  });
+});
+
+describe("fagan hook suggest", () => {
+  it("FM-R15.2 FM-R15.3 prints a suggestion only above the threshold", () => {
+    const low = repo({ ...fixtureConfig, suggestThresholdLoc: 0 });
+    const r = fagan(low, ["hook", "suggest"], "{}");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/^fagan: \d+ changed lines against HEAD \(threshold 0\)/);
+
+    const high = repo({ ...fixtureConfig, suggestThresholdLoc: 200 });
+    expect(fagan(high, ["hook", "suggest"], "{}")).toEqual({ status: 0, stdout: "", stderr: "" });
+  });
+
+  it("FM-R15.2 stays quiet while an inspection is open or a Closed one covers the diff", async () => {
+    const open = repo({ ...fixtureConfig, suggestThresholdLoc: 0 });
+    await toMeeting(open);
+    expect(fagan(open, ["hook", "suggest"], "{}").stdout).toBe("");
+
+    // No defects: close the meeting and pass follow-up, so the inspection is Closed.
+    const closed = repo({ ...fixtureConfig, suggestThresholdLoc: 0 });
+    await toMeeting(closed);
+    await closeMeetingService(ctxFor(closed), { inspection_id: ID, role: "moderator", notes: null });
+    const fu = await followUpService(ctxFor(closed), { inspection_id: ID, caller: { kind: "tool", role: "moderator" }, run_checks: true });
+    expect(fu.phase).toBe("Closed");
+    // The inspection's own files are untracked now; they must not count as changes.
+    expect(fagan(closed, ["hook", "suggest"], "{}").stdout).toBe("");
+    // A new change makes the diff differ again.
+    writeFileSync(join(closed, "README.md"), "# demo\nmore\n");
+    expect(fagan(closed, ["hook", "suggest"], "{}").stdout).toContain("changed lines against HEAD");
+  });
+
+  it("FM-R15.3 exits 0 for garbage input and outside a git repo", () => {
+    for (const input of ["not json", "", "null"]) {
+      const r = fagan(tmpdir(), ["hook", "suggest"], input);
+      expect(r.status).toBe(0);
+      expect(r.stdout).toBe("");
+    }
+    const root = repo({ ...fixtureConfig, suggestThresholdLoc: 0 });
+    expect(fagan(tmpdir(), ["hook", "suggest"], JSON.stringify({ cwd: root })).stdout).toContain("changed lines");
+  });
+});
+
+describe("fagan follow-up, abandon, export", () => {
+  it("FM-R15.4 follow-up --latest with nothing to do exits 0", () => {
+    const root = repo();
+    const r = fagan(root, ["follow-up", "--latest"]);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("nothing to do");
+  });
+
+  it("FM-R15.4 follow-up --latest runs follow-up and records a cli:follow-up event", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    const r = fagan(root, ["follow-up", "--latest"]);
+    expect(r.status).toBe(0);
+    const result = JSON.parse(r.stdout) as { inspection_id: string; passed: boolean; blocking: string[] };
+    expect(result).toMatchObject({ inspection_id: ID, passed: false, blocking: ["D001"] });
+    const last = (await readEvents(root, ID)).at(-1);
+    expect(last).toMatchObject({ tool: "cli:follow-up", role: "human" });
+    expect(fagan(root, ["follow-up", ID]).status).toBe(0);
+  });
+
+  it("FM-R15.5 FM-R15.7 abandon needs a valid reason", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    const short = fagan(root, ["abandon", ID, "--reason", "meh"]);
+    expect(short.status).toBe(1);
+    expect(JSON.parse(short.stderr)).toMatchObject({ code: "WAIVER_REASON_REQUIRED" });
+    const r = fagan(root, ["abandon", ID, "--reason", "Superseded by a smaller change."]);
+    expect(r.status).toBe(0);
+    const inspection = JSON.parse(readFileSync(join(root, ".fagan", "inspections", ID, "inspection.json"), "utf8")) as {
+      phase: string;
+      abandonReason: string;
+    };
+    expect(inspection).toMatchObject({ phase: "Abandoned", abandonReason: "Superseded by a smaller change." });
+    expect(fagan(root, ["abandon", ID, "--reason", "Superseded by a smaller change."]).status).toBe(1);
+  });
+
+  it("FM-R15.6 FM-R15.7 export writes the report files and rejects bad IDs", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    const r = fagan(root, ["export", ID, "--format", "txt"]);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/^\.fagan\/inspections\/insp-0001\/report\.txt sha256 [0-9a-f]{64} \d+ bytes\n$/);
+    expect(existsSync(join(root, ".fagan", "inspections", ID, "report.txt"))).toBe(true);
+    expect(existsSync(join(root, ".fagan", "inspections", ID, "report.json"))).toBe(false);
+
+    const bad = fagan(root, ["export", "../x"]);
+    expect(bad.status).toBe(1);
+    expect(JSON.parse(bad.stderr)).toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(fagan(root, ["export"]).status).toBe(1);
+    expect(fagan(root, ["nonsense"]).status).toBe(1);
+  });
+});

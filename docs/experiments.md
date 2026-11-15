@@ -33,6 +33,59 @@ Results of the experiments listed in PLAN.md section 2.4. Each row records what 
 - Whether Kiro actually pulled it in could not be observed from inside this harness: the agent session does not show which steering files were loaded, and no history or docs writing happened in step 2. Not observed, so no result is claimed.
 - To check later (step 7, when the README history section is written): ask in an interactive session for the Fagan citation and see whether the answer uses the verified list, or check Kiro's context view in the IDE. If it does not trigger, switch the file to `manual` as planned.
 
+## MCP registration and CLI dry run (step 2)
+
+`.kiro/settings/mcp.json` registers server `fagan` as `node packages/fagan-mcp/dist/cli.js serve`, in the format on [kiro.dev/docs/mcp/configuration](https://kiro.dev/docs/mcp/configuration/), without `autoApprove`. These commands ran on 2026-11-15 after `npm run build`. `kiro-cli --version` printed `kiro-cli 3.3.0` (the task notes said 3.2.1; the installed binary had been updated). `kiro-cli mcp --help` lists `add`, `remove`, `list`, `import` and `status`, so both `list` and `status` were run.
+
+From the repo root:
+
+```text
+$ kiro-cli mcp list
+
+🤖 default:
+
+  kiro_default
+    • fagan        node
+
+📄 workspace:
+
+  kiro_help
+    (empty)
+  kiro_planner
+    (empty)
+
+$ kiro-cli mcp status --name fagan
+
+─────────────
+Scope   : 🤖 default
+Agent   : kiro_default
+Command : node
+Timeout : 120000 ms
+Disabled: false
+Env Vars:
+```
+
+Both exited 0. As a control, `kiro-cli mcp list` run in `/tmp` showed `kiro_default` with `(empty)`, so the `fagan` entry above comes from this repo's `.kiro/settings/mcp.json`. Kiro lists it under the default agent `kiro_default`; the `workspace` heading lists the agents `kiro_help` and `kiro_planner`, which have no servers. These commands only read the config. They do not start the server or call a tool. Whether a Kiro chat session starts `fagan` and calls its tools is checked in step 3, when the role agents use it.
+
+The server itself was driven over stdio by `packages/fagan-mcp/test/contract.test.ts` (SDK `Client` and `StdioClientTransport`) in a temp repo, not in this repo.
+
+Dry run of the CLI in this repo. None of these commands writes anything; `.fagan/` still holds only `config.json` afterwards, and no inspection data was created:
+
+```text
+$ echo '{"hook_event_name":"Stop","cwd":"<repo root>"}' | node packages/fagan-mcp/dist/cli.js hook suggest
+fagan: 1739 changed lines against HEAD (threshold 200) and no inspection covers them. Consider asking the moderator agent to open an inspection with open_inspection.
+exit 0
+$ echo '{"tool_input":{"command":"git status"}}' | node packages/fagan-mcp/dist/cli.js hook gate
+exit 0
+$ echo '{"tool_input":{"command":"git commit -m test"}}' | node packages/fagan-mcp/dist/cli.js hook gate
+exit 0
+$ node packages/fagan-mcp/dist/cli.js follow-up --latest
+fagan follow-up: no inspection is in Rework or FollowUp; nothing to do.
+exit 0
+```
+
+The 1739 lines are this step's uncommitted work at the time. The commit check exits 0 because `.fagan/inspections/` does not exist yet (FM-R16.4). The payload field names here are guesses until E2 records a real `PreToolUse` payload in step 3.
+
 ## PBT findings
 
 Only real failures found by fast-check are recorded here, with the counterexample and the fix. The three below were found by property P4 (`FM-R11.3 FM-R11.4 report round-trips and is byte-stable`, `packages/fagan-mcp/test/report.property.test.ts`) during FEAT-002. P4-1 and P4-2 were reproduced again before the commit by removing their fix and running the property; P4-3 showed up in a normal test run during that check.

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "fagan": {
+      "command": "node",
+      "args": ["packages/fagan-mcp/dist/cli.js", "serve"],
+      "env": {},
+      "disabled": false
+    }
+  }
+}

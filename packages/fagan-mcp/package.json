@@ -5,13 +5,16 @@
   "description": "Deterministic local stdio MCP server and fagan CLI that keep the record for a Fagan-style code inspection.",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "fagan": "dist/cli.js"
+  },
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "npm run build && vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

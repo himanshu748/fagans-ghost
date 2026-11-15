@@ -60,26 +60,26 @@ Tasks 1 to 9 are the core, store, git and runner work (FEAT-002). Tasks 10 to 14
   - [x] 9.5 Commit-gate matcher in `src/core/gate.ts` and property P7
   - _Requirements: FM-R2.2, FM-R2.3, FM-R2.6, FM-R2.8, FM-R4.8, FM-R12.4, FM-R13.1, FM-R13.2, FM-R13.3, FM-R13.4, FM-R14.1, FM-R14.3, FM-R14.7, FM-R16.1, FM-R16.2_
 
-- [ ] 10. Tool services
-  - [ ] 10.1 One service function per tool in `src/service`, shared by server and CLI, validating fully before writing
+- [x] 10. Tool services
+  - [x] 10.1 One service function per tool in `src/service`, shared by server and CLI, validating fully before writing
   - _Requirements: FM-R2.1 to FM-R2.10, FM-R3.1 to FM-R3.8, FM-R5.1, FM-R5.2, FM-R6.1, FM-R6.2, FM-R6.6, FM-R7.1 to FM-R7.4, FM-R8.1, FM-R8.2, FM-R9.1, FM-R9.2, FM-R10.1, FM-R11.1, FM-R11.2, FM-R11.6_
 
-- [ ] 11. MCP server
-  - [ ] 11.1 Register the nine tools with `McpServer.registerTool`, zod input schemas, descriptions; `StdioServerTransport`; logs on stderr only
-  - [ ] 11.2 Success results with `structuredContent` plus JSON text; errors as `isError: true` with `{ code, message, details }`
+- [x] 11. MCP server
+  - [x] 11.1 Register the nine tools with `McpServer.registerTool`, zod input schemas, descriptions; `StdioServerTransport`; logs on stderr only
+  - [x] 11.2 Success results with `structuredContent` plus JSON text; errors as `isError: true` with `{ code, message, details }`
   - _Requirements: FM-R14.5, FM-R14.6, FM-R14.8, FM-R15.1_
 
-- [ ] 12. fagan CLI
-  - [ ] 12.1 `serve`, `hook suggest`, `hook gate`, `follow-up --latest` and `follow-up <id>`, `abandon`, `export` with `node:util` `parseArgs`; `bin` entry with shebang
-  - [ ] 12.2 CLI tests feeding STDIN payloads to `hook gate` and `hook suggest`
+- [x] 12. fagan CLI
+  - [x] 12.1 `serve`, `hook suggest`, `hook gate`, `follow-up --latest` and `follow-up <id>`, `abandon`, `export` with `node:util` `parseArgs`; `bin` entry with shebang
+  - [x] 12.2 CLI tests feeding STDIN payloads to `hook gate` and `hook suggest`
   - _Requirements: FM-R15.1 to FM-R15.7, FM-R16.3 to FM-R16.6_
 
-- [ ] 13. MCP contract test
-  - [ ] 13.1 Spawn the built server over stdio in a temp repo; list tools; drive a full lifecycle; check files on disk and error results
+- [x] 13. MCP contract test
+  - [x] 13.1 Spawn the built server over stdio in a temp repo; list tools; drive a full lifecycle; check files on disk and error results
   - _Requirements: FM-R1.2, FM-R7.2, FM-R9.4, FM-R14.1, FM-R14.4, FM-R14.5, FM-R14.8_
 
-- [ ] 14. Kiro registration and use
-  - [ ] 14.1 `.kiro/settings/mcp.json` registering server `fagan`
-  - [ ] 14.2 Run `kiro-cli mcp list` and record the real output in `docs/experiments.md`
-  - [ ] 14.3 Dry-run `fagan hook suggest` and `fagan hook gate` on this repo and record what ran
+- [x] 14. Kiro registration and use
+  - [x] 14.1 `.kiro/settings/mcp.json` registering server `fagan`
+  - [x] 14.2 Run `kiro-cli mcp list` and record the real output in `docs/experiments.md`
+  - [x] 14.3 Dry-run `fagan hook suggest` and `fagan hook gate` on this repo and record what ran
   - _Requirements: FM-R14.8, FM-R15.2, FM-R16.1_

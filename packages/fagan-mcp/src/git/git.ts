@@ -91,17 +91,41 @@ const DIFF_FORMAT = [
 ] as const;
 
 /**
+ * Pathspecs after `--`: none when nothing is excluded, else `.` plus one
+ * `:(exclude)<path>` per path (pathspec magic, see gitglossary "pathspec").
+ * Paths are repo-relative; every caller runs git in the repo root.
+ */
+function pathspecs(excludePaths: readonly string[]): string[] {
+  return excludePaths.length === 0 ? [] : [".", ...excludePaths.map((p) => `:(exclude)${p}`)];
+}
+
+/**
  * Tracked diff. With `headSha` null this is `git diff <base>`, which compares
  * the working tree (including staged content) with the commit.
  */
-export async function trackedDiff(root: string, baseSha: string, headSha: string | null): Promise<string> {
+export async function trackedDiff(
+  root: string,
+  baseSha: string,
+  headSha: string | null,
+  excludePaths: readonly string[] = [],
+): Promise<string> {
   const range = headSha === null ? [baseSha] : [baseSha, headSha];
-  return gitOk(root, ["-c", "core.quotepath=off", "diff", ...DIFF_FORMAT, "--no-relative", "--find-renames", ...range, "--"]);
+  return gitOk(root, [
+    "-c",
+    "core.quotepath=off",
+    "diff",
+    ...DIFF_FORMAT,
+    "--no-relative",
+    "--find-renames",
+    ...range,
+    "--",
+    ...pathspecs(excludePaths),
+  ]);
 }
 
 /** Untracked, non-ignored files, repo-relative, sorted by byte order. */
-export async function untrackedFiles(root: string): Promise<string[]> {
-  const out = await gitOk(root, ["ls-files", "--others", "--exclude-standard", "-z"]);
+export async function untrackedFiles(root: string, excludePaths: readonly string[] = []): Promise<string[]> {
+  const out = await gitOk(root, ["ls-files", "--others", "--exclude-standard", "-z", "--", ...pathspecs(excludePaths)]);
   return out
     .split("\0")
     .filter((p) => p.length > 0)
@@ -139,15 +163,18 @@ export interface CollectDiffOptions {
   base: string;
   head: string;
   includeUntracked: boolean;
+  /** Repo-relative paths left out of the diff entirely, such as the `.fagan` store itself. */
+  excludePaths?: readonly string[];
 }
 
 /** Resolves the range, collects the diff text, parses it and records blob hashes for both sides. */
 export async function collectDiff(root: string, opts: CollectDiffOptions): Promise<CollectedDiff> {
   const baseSha = await verifyRevision(root, opts.base, "base");
   const headSha = opts.head === WORKTREE ? null : await verifyRevision(root, opts.head, "head");
-  let diffText = await trackedDiff(root, baseSha, headSha);
+  const excludePaths = opts.excludePaths ?? [];
+  let diffText = await trackedDiff(root, baseSha, headSha, excludePaths);
   if (headSha === null && opts.includeUntracked) {
-    for (const path of await untrackedFiles(root)) diffText += await untrackedDiff(root, path);
+    for (const path of await untrackedFiles(root, excludePaths)) diffText += await untrackedDiff(root, path);
   }
   const files = parseUnifiedDiff(diffText);
   const blobs = new Map<string, BlobPair>();

@@ -1,5 +1,5 @@
-// Public exports of fagan-mcp: pure core, store, git adapter and runner.
-// The MCP server (src/server) and the `fagan` CLI (src/cli.ts) come in FEAT-003.
+// Public exports of fagan-mcp: pure core, store, git adapter, runner, the tool
+// services and the MCP server. The `fagan` CLI entry is src/cli.ts.
 export const SERVER_NAME = "fagan";
 
 export * from "./clock.js";
@@ -24,3 +24,5 @@ export * from "./store/store.js";
 export * from "./store/checklists.js";
 export * from "./git/git.js";
 export * from "./runner/runner.js";
+export * from "./service/service.js";
+export * from "./server/server.js";
