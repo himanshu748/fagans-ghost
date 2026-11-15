@@ -50,7 +50,7 @@ export interface PacketUnitView {
   hunk_header: string;
   changed_loc: number;
   checklist_id: string;
-  lines: Array<{ kind: LineKind; old_no: number | null; new_no: number | null; text: string }>;
+  lines: Array<{ kind: LineKind; old_no: number | null; new_no: number | null; text: string; no_newline_at_eof: boolean }>;
 }
 
 export interface GetPacketResult {
@@ -110,7 +110,7 @@ export function getPacket(
     hunk_header: u.hunkHeader,
     changed_loc: u.changedLoc,
     checklist_id: checklistOf.get(u.file) ?? "",
-    lines: u.lines.map((l) => ({ kind: l.kind, old_no: l.oldNo, new_no: l.newNo, text: l.text })),
+    lines: u.lines.map((l) => ({ kind: l.kind, old_no: l.oldNo, new_no: l.newNo, text: l.text, no_newline_at_eof: l.noNewlineAtEof })),
   }));
   const usedIds = [...new Set(units.map((u) => u.checklist_id))].sort();
   const checklistViews: GetPacketResult["checklists"] = {};
@@ -418,7 +418,10 @@ export function followUp(
   setPhase(next, passed ? "Closed" : "Rework");
   if (passed) next.inspection.timestamps.closedAt = at;
   const n = next.followup.attempts.length + 1;
-  next.followup.attempts.push({ n, at, checks: input.checks, defects: statuses, blocking, passed });
+  const blobs = state.packet.files
+    .filter((f) => input.currentBlobs.has(f.path))
+    .map((f) => ({ path: f.path, blob: input.currentBlobs.get(f.path) ?? null }));
+  next.followup.attempts.push({ n, at, checks: input.checks, defects: statuses, blocking, passed, blobs });
   return {
     state: next,
     result: {
@@ -444,6 +447,7 @@ export function metricsOp(
     timestamps: state.inspection.timestamps,
     changedLoc: state.packet.changedLoc,
     defects: state.defects.defects,
+    attempts: state.followup.attempts,
     rateWarnings,
     computedAt: at,
   });

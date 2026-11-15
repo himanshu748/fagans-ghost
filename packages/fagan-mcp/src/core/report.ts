@@ -212,6 +212,8 @@ export function renderReportTxt(report: Report): string {
           body.push(`${" ".repeat(codeIndent - 2)}\\ ${piece}`);
         }
       });
+      // Same marker as git, so a change that only adds or removes the final newline is visible.
+      if (line.noNewlineAtEof) body.push(`${" ".repeat(codeIndent - 2)}\\ No newline at end of file`);
     }
     const reading = readings.readings.find((r) => r.unitId === unit.id);
     if (reading === undefined) {

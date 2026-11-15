@@ -2,10 +2,11 @@
 // `fagan` CLI: the MCP server entry and the commands hooks run, because hooks
 // cannot call MCP tools (design.md "CLI", FM-R15, FM-R16). Arguments are
 // parsed with node:util parseArgs.
+import { resolve as resolvePath } from "node:path";
 import { parseArgs } from "node:util";
 import { systemClock } from "./clock.js";
 import { isFaganError } from "./core/errors.js";
-import { isGitCommitCommand } from "./core/gate.js";
+import { gitCommitTargets } from "./core/gate.js";
 import { startServer } from "./server/server.js";
 import {
   abandonService,
@@ -14,6 +15,7 @@ import {
   gateBlocks,
   latestFollowUpCandidate,
   suggestion,
+  type GateBlock,
   type ReportFormat,
   type ServiceContext,
 } from "./service/service.js";
@@ -117,11 +119,21 @@ async function hookGate(): Promise<number> {
     err(`fagan commit gate: warning: no command string in tool_input (checked ${COMMAND_FIELDS.join(", ")}); allowing`);
     return 0;
   }
-  if (!isGitCommitCommand(command)) return 0;
+  const targets = gitCommitTargets(command);
+  if (targets.length === 0) return 0;
   try {
-    const blocks = await gateBlocks(payloadCwd(payload));
+    // Each commit runs in the payload cwd moved by its `-C`/`--chdir` values.
+    const base = payloadCwd(payload);
+    const dirs = [...new Set(targets.map((t) => t.reduce((dir, p) => resolvePath(dir, p), base)))];
+    const blocks: GateBlock[] = [];
+    for (const dir of dirs) {
+      for (const b of await gateBlocks(dir)) {
+        if (!blocks.some((x) => x.inspection_id === b.inspection_id && x.root === b.root)) blocks.push(b);
+      }
+    }
     if (blocks.length === 0) return 0;
-    const list = blocks.map((b) => `${b.inspection_id}: ${b.defect_ids.join(", ")}`).join("; ");
+    const manyRoots = new Set(blocks.map((b) => b.root)).size > 1;
+    const list = blocks.map((b) => `${b.inspection_id}: ${b.defect_ids.join(", ")}${manyRoots ? ` (in ${b.root})` : ""}`).join("; ");
     const message =
       `fagan commit gate: blocked. Open major defects: ${list}. ` +
       "Fix them and run follow_up, or have the Author waive them with a reason, before committing.";

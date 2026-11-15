@@ -3,14 +3,59 @@
 // The command is tokenised like a POSIX shell would split words (single and
 // double quotes, backslash escapes), then cut into segments at `&&`, `||`,
 // `;`, `|`, `&`, `(`, `)` and newlines outside quotes. A segment is a commit
-// when, after leading `NAME=value` words and the wrappers `command`, `env`,
-// `exec`, `nohup` and `time`, the program is `git` (or a path ending in
-// `/git`) and the first word after git's global options is `commit`. Bodies of
-// command substitutions (`$(...)`, backticks) are checked as segments too.
-// Known gap: commands inside `sh -c '...'`, `eval`, or git aliases are not seen.
+// when, after leading `NAME=value` words and the wrappers in `WRAPPERS` with
+// their options, the program is `git` (or a path ending in `/git`) and the
+// first word after git's global options is `commit`. Bodies of command
+// substitutions (`$(...)`, backticks) are checked as segments too.
+// Each commit also reports the directories it runs in: `git -C <path>` and
+// the wrapper options `env -C`/`--chdir` and `sudo -D`/`--chdir`, in order,
+// so the gate checks the repo the commit really targets (review v1 issue 6).
+// Known gaps (design.md "Commit gate scope"): commands inside `sh -c '...'`,
+// `eval`, scripts and git aliases; `cd <dir> && git commit` (the gate checks
+// the payload cwd); `--git-dir`/`--work-tree`; `env -S`; commits made by
+// `git merge`, `cherry-pick`, `revert`, `am` or `rebase`.
 
 const SEPARATORS = new Set([";", "|", "&", "(", ")", "\n"]);
-const WRAPPERS = new Set(["command", "env", "exec", "nohup", "time"]);
+
+interface WrapperSpec {
+  /** Options that take the next word as their value when written without `=`. */
+  valueOptions: ReadonlySet<string>;
+  /** Options among `valueOptions` whose value is a directory the command runs in. */
+  chdirOptions: ReadonlySet<string>;
+  /** Operands before the command, such as the duration of `timeout`. */
+  operands: number;
+}
+
+const spec = (valueOptions: string[], chdirOptions: string[] = [], operands = 0): WrapperSpec => ({
+  valueOptions: new Set([...valueOptions, ...chdirOptions]),
+  chdirOptions: new Set(chdirOptions),
+  operands,
+});
+
+/**
+ * Programs that run the rest of the words as a command. Options from the GNU
+ * coreutils manual (env, nice, nohup, stdbuf, timeout), the findutils xargs
+ * man page, the sudo man page and the doas man page.
+ */
+const WRAPPERS: ReadonlyMap<string, WrapperSpec> = new Map([
+  ["command", spec([])],
+  ["exec", spec(["-a"])],
+  ["time", spec(["-f", "-o", "--format", "--output"])],
+  ["nohup", spec([])],
+  ["env", spec(["-u", "--unset", "-S", "--split-string", "-a", "--argv0", "-P"], ["-C", "--chdir"])],
+  ["nice", spec(["-n", "--adjustment"])],
+  ["timeout", spec(["-k", "--kill-after", "-s", "--signal"], [], 1)],
+  ["stdbuf", spec(["-i", "-o", "-e", "--input", "--output", "--error"])],
+  ["xargs", spec(["-a", "--arg-file", "-d", "--delimiter", "-E", "-I", "-L", "--max-lines", "-n", "--max-args", "-P", "--max-procs", "-s", "--max-chars", "--process-slot-var"])],
+  [
+    "sudo",
+    spec(
+      ["-a", "--auth-type", "-C", "--close-from", "-c", "--login-class", "-g", "--group", "-h", "--host", "-p", "--prompt", "-R", "--chroot", "-r", "--role", "-t", "--type", "-U", "--other-user", "-T", "--command-timeout", "-u", "--user"],
+      ["-D", "--chdir"],
+    ),
+  ],
+  ["doas", spec(["-a", "-u", "-C"])],
+]);
 const ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 /** Git global options that take the next word as their value when written without `=`. */
 const OPTIONS_WITH_VALUE = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env", "--list-cmds"]);
@@ -156,37 +201,69 @@ export function shellSegments(command: string): string[][] {
   return [...segments, ...nested];
 }
 
-/** True when one segment's words run `git ... commit`. */
-export function isGitCommitSegment(words: readonly string[]): boolean {
+/**
+ * The directories a `git ... commit` segment runs in, as written, in the
+ * order they apply (wrapper chdir options, then `git -C` values); `null` when
+ * the segment is not a git commit. An empty list means the shell's cwd.
+ */
+export function gitCommitDirs(words: readonly string[]): string[] | null {
+  const dirs: string[] = [];
   let i = 0;
   for (;;) {
     const w = words[i];
-    if (w === undefined) return false;
+    if (w === undefined) return null;
     if (ASSIGNMENT_RE.test(w)) {
       i++;
       continue;
     }
-    if (WRAPPERS.has(w)) {
+    const wrapper = WRAPPERS.get(w);
+    if (wrapper !== undefined) {
       i++;
-      // Skip the wrapper's own options, such as `env -i` or `time -p`.
-      while (words[i]?.startsWith("-")) i++;
+      // Skip the wrapper's own options, such as `env -i`, `sudo -u root` or `nice -n 5`.
+      while (words[i]?.startsWith("-") === true) {
+        const opt = words[i] as string;
+        i++;
+        if (opt === "--") break;
+        const eq = opt.indexOf("=");
+        const name = opt.startsWith("--") && eq > 0 ? opt.slice(0, eq) : opt;
+        if (eq > 0 && opt.startsWith("--")) {
+          if (wrapper.chdirOptions.has(name)) dirs.push(opt.slice(eq + 1));
+        } else if (wrapper.valueOptions.has(name)) {
+          if (wrapper.chdirOptions.has(name) && words[i] !== undefined) dirs.push(words[i] as string);
+          i++;
+        }
+      }
+      i += wrapper.operands;
       continue;
     }
     break;
   }
   const program = words[i];
-  if (program === undefined || !(program === "git" || program.endsWith("/git"))) return false;
+  if (program === undefined || !(program === "git" || program.endsWith("/git"))) return null;
   i++;
   while (i < words.length) {
     const w = words[i] as string;
-    if (w === "--") return words[i + 1] === "commit";
-    if (!w.startsWith("-")) return w === "commit";
+    if (w === "--") return words[i + 1] === "commit" ? dirs : null;
+    if (!w.startsWith("-")) return w === "commit" ? dirs : null;
+    if (w === "-C" && words[i + 1] !== undefined) dirs.push(words[i + 1] as string);
     i += OPTIONS_WITH_VALUE.has(w) ? 2 : 1;
   }
-  return false;
+  return null;
+}
+
+/** True when one segment's words run `git ... commit`. */
+export function isGitCommitSegment(words: readonly string[]): boolean {
+  return gitCommitDirs(words) !== null;
+}
+
+/** For each git commit segment of the shell command, the directories it runs in (FM-R16.2). */
+export function gitCommitTargets(command: string): string[][] {
+  return shellSegments(command)
+    .map(gitCommitDirs)
+    .filter((d): d is string[] => d !== null);
 }
 
 /** True when any segment of the shell command is a git commit (FM-R16.2). */
 export function isGitCommitCommand(command: string): boolean {
-  return shellSegments(command).some(isGitCommitSegment);
+  return gitCommitTargets(command).length > 0;
 }

@@ -105,7 +105,8 @@ Every stored file has a zod schema in `src/core/schema.ts`, exactly as PLAN.md s
 - `packet.json` `files[]` also has `skipped`: `null | "binary" | "excluded"` (FM-R4.5).
 - `readings.json`: `{ schemaVersion: "fagan-readings/1", readings: [ { id, unitId, paraphrase, judgmentFlags, recordedAt } ] }`.
 - `rework.json`: `{ schemaVersion: "fagan-rework/1", items: [ { defectId, resolution, note | null, reason | null, recordedAt } ] }`, one item per defect (the latest).
-- `followup.json`: `{ schemaVersion: "fagan-followup/1", attempts: [ { n, at, checks: { build, tests }, defects: [ { defectId, severity, status } ], blocking, passed } ] }`. A check that did not run is `{ ran: false, passed: false, exitCode: null, durationMs: null }`.
+- `followup.json`: `{ schemaVersion: "fagan-followup/1", attempts: [ { n, at, checks: { build, tests }, defects: [ { defectId, severity, status } ], blocking, passed, blobs: [ { path, blob } ] } ] }`. A check that did not run is `{ ran: false, passed: false, exitCode: null, durationMs: null }`. `blobs` holds the working-tree blob hash of each packet file when the attempt ran, in packet file order, with `blob: null` for a file that is gone (FM-R9.6). The field is required: a `followup.json` without it fails validation with `STORE_CORRUPT`. That is acceptable because nothing has been released and no `.fagan/inspections/` data exists yet, so no older file needs to load (review v1, issue 5).
+- `packet.json` unit lines are `{ kind, oldNo, newNo, text, noNewlineAtEof }`; `noNewlineAtEof` is true when git printed `\ No newline at end of file` after the line. `get_packet` returns it as `no_newline_at_eof`, and `report.txt` prints `\ No newline at end of file` under the line, so a change that only adds or removes the final newline is visible (FM-R4.7, review v1 issue 7).
 - `metrics.json`: `{ schemaVersion: "fagan-metrics/1", computedAt, ...section 9 fields }`.
 
 Key order on write is the order of keys in the zod schema object, so the schema is the single source of order. The serializer (`core/json.ts`) re-emits objects in schema order, sorts arrays of records by their `id` (or `defectId`, `n`, `seq`) field, uses 2-space indent and ends with `\n` (FM-R12.1).
@@ -159,9 +160,22 @@ Errors are thrown inside services as `FaganError` and turned into tool results `
 ## Store
 
 - Atomic write: `writeFile(<target>.<pid>.<n>.tmp)`, then `rename` onto the target in the same folder (FM-R13.1).
-- Lock: `open(".fagan/.lock", "wx")` writing `{ pid, at }`. A lock whose mtime is older than 60 seconds is stale and is removed once before retrying; otherwise `LOCKED` (FM-R13.2). The lock is removed in a `finally` block (FM-R13.3).
+- Lock: `open(".fagan/.lock", "wx")` writing `{ pid, at }`. A lock whose mtime is older than 60 seconds (`LOCK_STALE_MS`) is stale and is taken over. The lock is removed in a `finally` block (FM-R13.3).
+- Lock queue and retry (FM-R13.2, review v1 issue 2): the MCP SDK does not serialise tool calls, so `withLock` (`src/store/fs.ts`) first waits its turn in an in-process promise queue keyed by the resolved lock path. Calls from one `fagan serve` process therefore run one at a time and never see each other's lock file. A fresh lock held by another process (for example the CLI) is retried every `LOCK_POLL_MS` (25 ms) for up to `LOCK_RETRY_MS` (2000 ms), then the call fails with `LOCKED` and writes nothing. No code path calls `withLock` inside another `withLock` (`transact` and `createInspection` in `src/store/store.ts` are the only callers and their callbacks are pure ops or file writes), so the queue cannot deadlock on itself; a nested call on the same path would wait forever and must not be added.
+- Writes in one transaction are atomic per file, not as a group. A crash between renames can leave one state file updated without its event line; `load` does not detect that. FM-R13.1 asks only for per-file atomicity, so this is a known limit.
 - A tool call validates everything in memory first and writes only after all checks pass, so errors leave the store unchanged (FM-R1.3).
 - Inspection IDs: scan `.fagan/inspections/` for `insp-NNNN` folders, take the highest plus one.
+
+## Metrics durations
+
+`reworkAndFollowupMs` in `src/core/metrics.ts` computes rework and follow-up time from `meetingEnd` and the follow-up attempts in `followup.json`, not from `reworkStart` and `followupStart` (FM-R10.1, review v1 issue 1):
+
+1. Start at `meetingEnd` in Rework when the meeting logged defects, else in FollowUp. No `meetingEnd` makes both durations `null` with `phase_not_reached`.
+2. For each attempt in order, add `attempt.at - since` to the current phase's total. The attempt enters FollowUp; a `follow_up` called from Rework passes through FollowUp inside the call, so it adds a zero-length FollowUp visit. A passing attempt moves to Closed and stops the walk; a failing one starts a new Rework visit at `attempt.at`.
+3. If the walk ends outside Closed, the current visit is still open: with `abandonedAt` set it ends there, otherwise that phase's total is `null` with `phase_not_reached`.
+4. A phase never entered is `null` with `phase_not_reached`.
+
+So in the usual flow (meeting with defects, a failing `follow_up`, more rework, a passing `follow_up`) rework is `closedAt - meetingEnd` and follow-up is `0`, a real value: every follow-up attempt happens inside one tool call. Follow-up time is above zero only when the meeting logged no defects, so the inspection waits in FollowUp from `meetingEnd` until the first `follow_up`. `reworkStart` and `followupStart` stay in `inspection.json` as informational first-occurrence stamps (FM-R1.5).
 
 ## MCP server
 
@@ -203,10 +217,28 @@ CLI details (FEAT-003):
 
 - `hook gate` reads the command from `tool_input.command`, then `tool_input.cmd` (string values only), until experiment E2 confirms the real field. It uses the payload's `cwd` when it is a non-empty string, else the process working directory. Outside a git repository, or with no `.fagan/inspections/`, a commit is allowed. On a block it prints the inspection IDs and blocking defect IDs, as `insp-0001: D001, D003`, to both stdout and stderr.
 - `hook suggest` prints at most one line and swallows every error (message on stderr), so it always exits 0.
+- `hook suggest` coverage (FM-R15.2, review v1 issue 5): a changed file counts as covered when its current working-tree blob hash is one of the hashes recorded for that path in a Closed inspection's passing follow-up attempt (`attempts[].blobs`). This includes the Author's rework, which changes the diff after the inspection was opened. Only uncovered files count toward `suggestThresholdLoc`. A byte-equal `diff.patch` still counts as covered. When the uncovered count is above `sizeLimitLoc`, the message says `open_inspection` would refuse it with `SIZE_LIMIT_EXCEEDED` and asks for the change to be split.
+- `hook gate` target repos (FM-R16.2, review v1 issue 6): `gitCommitTargets` in `src/core/gate.ts` returns, for each commit segment, its directory options in the order they apply (`env -C`/`--chdir`, `sudo -D`/`--chdir`, then each `git -C`). The CLI resolves them one after another from the payload `cwd` with `path.resolve`, so a relative `-C` is relative to the previous directory as git documents, and checks the store of every distinct target repo. When blocks come from more than one repo, each is labelled with its root.
 - `follow-up` and `export` run the same service functions as the `follow_up` and `export_report` tools. The CLI acts for the human, who is the Author: `follow-up` passes the role check as `author`, and both commands record their events as `cli:follow-up` / `cli:export` with role `human`. `abandon` records `cli:abandon` with role `human`.
 - Failed commands other than the hooks print `{ "code", "message" }` to stderr and exit 1; usage errors print the usage text and exit 1.
 
-Commit gate matcher (`core/gate.ts`): split the command on `&&`, `||`, `;`, `|` and newlines; in each segment drop leading `NAME=value` words; if the program is `git` (or ends in `/git`), skip global options (`-c <k=v>`, `-C <path>`, `--git-dir=<p>`, `--work-tree=<p>`, `--no-pager`, `-p`, `--paginate`, and other words starting with `-`, taking one argument for `-c` and `-C`); the next word is the subcommand. It is a commit if that word is `commit`. Quoted strings are tokenised so `git log --grep "commit"` and `echo "git commit"` are not commits. Known gap: commands hidden inside `sh -c '...'` or aliases are not detected; documented in README.
+Commit gate matcher (`core/gate.ts`): split the command on `&&`, `||`, `;`, `|`, `&`, parentheses and newlines outside quotes, and check the bodies of `$(...)` and backticks as segments too; in each segment drop leading `NAME=value` words and the wrappers in `WRAPPERS` with their options and operands; if the program is `git` (or ends in `/git`), skip global options (`-c <k=v>`, `-C <path>`, `--git-dir=<p>`, `--work-tree=<p>`, `--no-pager`, `-p`, `--paginate`, and other words starting with `-`, taking one argument for the options that need one); the next word is the subcommand. It is a commit if that word is `commit`. Quoted strings are tokenised so `git log --grep "commit"` and `echo "git commit"` are not commits.
+
+`WRAPPERS` (review v1 issue 6) lists `command`, `exec`, `time`, `nohup`, `env`, `nice`, `timeout`, `stdbuf`, `xargs`, `sudo` and `doas`, with the options that take a value taken from the GNU coreutils manual (env, nice, nohup, stdbuf, timeout), the findutils `xargs` man page and the `sudo` and `doas` man pages. `timeout` also skips its duration operand.
+
+### Commit gate scope
+
+The gate is a guard against an agent's ordinary `git commit`, not a sandbox. These commits are known to pass it:
+
+- Commands inside `sh -c '...'`, `bash -c`, `eval`, scripts, Makefiles, npm scripts and git aliases (the matcher sees only the outer command line).
+- `cd <dir> && git commit`: the gate checks the payload `cwd`, not the directory after `cd`.
+- `git --git-dir=<p>` or `--work-tree=<p>` pointing at another repo: the gate checks the repo found from the working directory.
+- `env -S '<string>'` (`--split-string`), whose command is inside one word.
+- Wrappers not in `WRAPPERS`, such as `chronic`, `ionice`, `flock` or `script -c`.
+- Commits made by other git subcommands: `git merge`, `cherry-pick`, `revert`, `am`, `rebase`, `pull`, `stash` and plumbing such as `commit-tree`. FM-R16.2 defines a commit as the `commit` subcommand only.
+- Payload problems fail open (FM-R16.5, review v1 issue 4): if Kiro's `PreToolUse` payload carries the command in neither `tool_input.command` nor `tool_input.cmd`, every commit passes with only a stderr warning. Experiment E2 in step 3 must confirm the field, and step 3's acceptance check is that the gate blocked a real `git commit` in a live Kiro session (`tasks.md` task 15, `docs/experiments.md`).
+
+Step 7's root README must copy this list into its own "Commit gate scope" section; until then this section is the reference, and the comment in `src/core/gate.ts` points here.
 
 ## Testing strategy
 

@@ -2,7 +2,7 @@
 
 Requirements: #[[file:.kiro/specs/fagan-mcp/requirements.md]]. Design: #[[file:.kiro/specs/fagan-mcp/design.md]].
 
-Tasks 1 to 9 are the core, store, git and runner work (FEAT-002). Tasks 10 to 14 are the server, CLI, contract test and Kiro registration (FEAT-003). Tick each box when its tests pass.
+Tasks 1 to 9 are the core, store, git and runner work (FEAT-002). Tasks 10 to 14 are the server, CLI, contract test and Kiro registration (FEAT-003). Task 15 is the review v1 fix pass. Task 16 is carried into step 3. Tick each box when its tests pass.
 
 - [x] 1. Core schemas and deterministic JSON
   - [x] 1.1 zod schemas and types for config, inspection, packet, readings, defects, rework, followup, metrics, events and report in `src/core/schema.ts`
@@ -83,3 +83,17 @@ Tasks 1 to 9 are the core, store, git and runner work (FEAT-002). Tasks 10 to 14
   - [x] 14.2 Run `kiro-cli mcp list` and record the real output in `docs/experiments.md`
   - [x] 14.3 Dry-run `fagan hook suggest` and `fagan hook gate` on this repo and record what ran
   - _Requirements: FM-R14.8, FM-R15.2, FM-R16.1_
+
+- [x] 15. Review v1 fixes (semantic review of 2026-11-16, 7 issues)
+  - [x] 15.1 Rework and follow-up durations from `meetingEnd` and follow-up attempts; metrics tests for the fail-then-pass loop, no-defect, open and abandoned cases
+  - [x] 15.2 In-process lock queue plus a 2 s bounded retry for another process's lock
+  - [x] 15.3 Property tying `openMajorIds` to each attempt's `blocking`; CLI gate test for a fixed but unverified major
+  - [x] 15.4 Attempts store working-tree blob hashes; `hook suggest` skips files a Closed inspection accepted and mentions `sizeLimitLoc`
+  - [x] 15.5 Gate wrappers (`nice`, `timeout`, `stdbuf`, `xargs`, `sudo`, `doas`, `env -C`) and `-C`/`--chdir` target repos; "Commit gate scope" list in design.md
+  - [x] 15.6 `noNewlineAtEof` carried into `packet.json`, `get_packet` and `report.txt`
+  - _Requirements: FM-R1.5, FM-R4.7, FM-R8.5, FM-R9.6, FM-R10.1, FM-R13.2, FM-R15.2, FM-R16.2_
+
+- [ ] 16. Step 3: prove the commit gate in a live Kiro session (review v1 issue 4)
+  - [ ] 16.1 Run experiment E2 and record the real `PreToolUse` shell tool ID and command field in `docs/experiments.md`; change `COMMAND_FIELDS` in `src/cli.ts` if the field differs
+  - [ ] 16.2 Acceptance: with `.kiro/hooks/commit-gate.json` wired and an inspection holding an open major, the gate blocked a real `git commit` attempted by the agent in a live Kiro session. Recording the payload field alone does not complete this task
+  - _Requirements: FM-R16.3, FM-R16.5_

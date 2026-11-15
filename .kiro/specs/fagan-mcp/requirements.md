@@ -22,7 +22,7 @@ Glossary:
 2. **FM-R1.2** WHEN a tool is called in a phase where it is not allowed THE SYSTEM SHALL return error `WRONG_PHASE` with the current phase and the allowed phases in `details`.
 3. **FM-R1.3** WHEN a tool call returns any error THE SYSTEM SHALL leave every file under `.fagan/inspections/<id>/` unchanged.
 4. **FM-R1.4** WHEN the inspection is in a terminal phase THE SYSTEM SHALL accept only `get_packet` with `phase: "overview"`, `metrics` and `export_report`, and SHALL return `WRONG_PHASE` for every other tool.
-5. **FM-R1.5** WHEN a phase starts or ends THE SYSTEM SHALL record the server clock time in `inspection.json` under `timestamps`, and SHALL never overwrite a timestamp that is already set, except that a FollowUp to Rework transition leaves `reworkStart` unchanged.
+5. **FM-R1.5** WHEN a timestamp's event first happens THE SYSTEM SHALL record the server clock time in `inspection.json` under `timestamps` and SHALL never overwrite a timestamp that is already set. The events are: `planningStart`, `planningEnd` and `overviewStart` at `open_inspection`, `preparationStart` and `meetingStart` at the first move into Preparation and Meeting, `meetingEnd` at `close_meeting`, `reworkStart` at the first `record_rework` (FM-R8.5), `followupStart` at the first entry into FollowUp (`close_meeting` with no defects, or the first `follow_up`), `closedAt` when follow-up passes and `abandonedAt` at abandon. `reworkStart` and `followupStart` are informational first-occurrence stamps; rework and follow-up durations do not use them and come from `meetingEnd` and the follow-up attempt times (FM-R10.1).
 
 ## Requirement 2: open_inspection
 
@@ -62,7 +62,7 @@ Glossary:
 4. **FM-R4.4** WHEN `changed_loc` is computed THE SYSTEM SHALL count added plus deleted lines over all units, excluding binary files and files matching `config.exclude`.
 5. **FM-R4.5** WHEN a file is binary or matches `config.exclude` THE SYSTEM SHALL list it in `packet.json` `files` with `skipped` set to `"binary"` or `"excluded"` and create no units for it.
 6. **FM-R4.6** WHEN a checklist is chosen for a file THE SYSTEM SHALL use the first entry in `config.checklists` whose glob matches the repo-relative path, otherwise `defaultChecklist`, and SHALL store that choice per file in `packet.json`.
-7. **FM-R4.7** WHEN the diff contains added, deleted, renamed, or "no newline at end of file" cases THE SYSTEM SHALL parse them into the correct file status, line kinds and line numbers.
+7. **FM-R4.7** WHEN the diff contains added, deleted, renamed, or "no newline at end of file" cases THE SYSTEM SHALL parse them into the correct file status, line kinds and line numbers; each packet unit line SHALL carry `noNewlineAtEof` (true when git printed `\ No newline at end of file` after it) in `packet.json` and in `get_packet` results (as `no_newline_at_eof`), and `report.txt` SHALL print git's marker after such a line.
 8. **FM-R4.8** WHEN `packet.json` is written THE SYSTEM SHALL store each file's blob hash before (`blobBefore`) and after (`blobAfter`) the change, or `null` where the file does not exist on that side.
 
 ## Requirement 5: record_reading
@@ -104,7 +104,7 @@ Glossary:
 2. **FM-R8.2** WHEN `record_rework` is called while the inspection is Closed THE SYSTEM SHALL return `ALREADY_CLOSED`; WHEN it is called in any phase other than Rework THE SYSTEM SHALL return `WRONG_PHASE`.
 3. **FM-R8.3** WHEN an item names a defect ID that does not exist THE SYSTEM SHALL return `UNKNOWN_DEFECT`; WHEN one batch names the same defect twice THE SYSTEM SHALL return `DUPLICATE_DEFECT_IN_BATCH`.
 4. **FM-R8.4** WHEN an item has resolution `waived` and its reason is not a valid waiver reason THE SYSTEM SHALL return `WAIVER_REASON_REQUIRED` and store none of the batch.
-5. **FM-R8.5** WHEN a batch is valid THE SYSTEM SHALL store each item with `recordedAt`, replacing any earlier item for the same defect in `rework.json` while keeping every item in `events.jsonl`, set `reworkStart` on the first call, and return the items and the number of open majors.
+5. **FM-R8.5** WHEN a batch is valid THE SYSTEM SHALL store each item with `recordedAt`, replacing any earlier item for the same defect in `rework.json` while keeping every item in `events.jsonl`, set `reworkStart` on the first call only (an informational stamp, FM-R1.5), and return the items and the number of open majors.
 
 ## Requirement 9: follow_up and exit criteria
 
@@ -115,13 +115,13 @@ Glossary:
 3. **FM-R9.3** WHEN a defect's latest rework item is `fixed` THE SYSTEM SHALL mark it `verified` in this attempt only if the build and tests both passed in this attempt and, when `requireLocationChange` is true, the file's current blob hash differs from its `blobAfter` in the packet; otherwise it SHALL mark it `fixed_unverified`.
 4. **FM-R9.4** WHEN follow-up evaluates the exit rule THE SYSTEM SHALL pass if and only if every major defect is `verified` or `waived` with a valid waiver reason. Minor defects SHALL never block the exit.
 5. **FM-R9.5** WHEN follow-up passes THE SYSTEM SHALL set `closedAt` and move to Closed; WHEN it fails THE SYSTEM SHALL move to Rework and return the blocking defect IDs.
-6. **FM-R9.6** WHEN follow-up runs THE SYSTEM SHALL append one attempt with its time, checks, per-defect statuses and result to `followup.json`.
+6. **FM-R9.6** WHEN follow-up runs THE SYSTEM SHALL append one attempt with its time, checks, per-defect statuses, result and the working-tree blob hash of each packet file at that time (`null` for a file that is gone) to `followup.json`.
 
 ## Requirement 10: metrics
 
 **User story:** As the Author, I want preparation rate, inspection rate and defect density computed from real timestamps, so that I can see whether the agents actually took the reading seriously.
 
-1. **FM-R10.1** WHEN `metrics` is called THE SYSTEM SHALL compute durations from `inspection.json` timestamps: planning, overview, preparation (`meetingStart - preparationStart`), meeting (`meetingEnd - meetingStart`), rework and follow-up, and write `metrics.json`.
+1. **FM-R10.1** WHEN `metrics` is called THE SYSTEM SHALL compute durations from `inspection.json` timestamps: planning, overview, preparation (`meetingStart - preparationStart`), meeting (`meetingEnd - meetingStart`), rework and follow-up, and write `metrics.json`. Rework is the total time spent in Rework across all visits and follow-up is the total time spent in FollowUp across all visits. The phase after the meeting starts at `meetingEnd`; each follow-up attempt ends the current visit at its time, a failed attempt starts a new Rework visit, and a `follow_up` call made from Rework adds a zero-length FollowUp visit. Abandoning ends the open visit at `abandonedAt`. WHEN a phase was never entered, or the inspection is still in it, THE SYSTEM SHALL return `null` for its duration with null reason `phase_not_reached`.
 2. **FM-R10.2** WHEN metrics are computed THE SYSTEM SHALL compute `preparation_rate_loc_per_hour = changed_loc / (preparation_ms / 3600000)`, `inspection_rate_loc_per_hour = changed_loc / (meeting_ms / 3600000)`, `defects_per_kloc = defects / (changed_loc / 1000)` and `majors_per_kloc` the same with majors.
 3. **FM-R10.3** WHEN a timestamp needed for a value is missing THE SYSTEM SHALL return `null` for that value with null reason `phase_not_reached`.
 4. **FM-R10.4** WHEN a needed duration is zero or negative THE SYSTEM SHALL return `null` with null reason `non_positive_duration`.
@@ -158,7 +158,7 @@ Glossary:
 **User story:** As the Author, I want the store to survive crashes and concurrent calls, so that the defect log is never half-written.
 
 1. **FM-R13.1** WHEN a file is written THE SYSTEM SHALL write it to a temporary file in the same folder and then rename it over the target.
-2. **FM-R13.2** WHEN a write starts THE SYSTEM SHALL create `.fagan/.lock` exclusively; WHEN the lock already exists and is not stale THE SYSTEM SHALL return `LOCKED` and write nothing.
+2. **FM-R13.2** WHEN a write starts THE SYSTEM SHALL create `.fagan/.lock` exclusively. WHEN another call in the same process holds the lock THE SYSTEM SHALL queue the write until that call finishes. WHEN another process holds a lock that is not stale THE SYSTEM SHALL retry for up to 2 seconds and then return `LOCKED` and write nothing.
 3. **FM-R13.3** WHEN a write finishes or fails THE SYSTEM SHALL remove the lock it created.
 4. **FM-R13.4** WHEN a stored file is missing or fails schema validation on read THE SYSTEM SHALL return `STORE_CORRUPT` naming the file; WHEN the inspection folder does not exist THE SYSTEM SHALL return `INSPECTION_NOT_FOUND`.
 5. **FM-R13.5** WHEN `.fagan/config.json` is missing or fails validation THE SYSTEM SHALL return `CONFIG_INVALID` with the failing paths.
@@ -181,7 +181,7 @@ Glossary:
 **User story:** As a hook author, I want a CLI over the same core and store, so that hooks (which cannot call MCP tools) can run the ritual's checks.
 
 1. **FM-R15.1** WHEN `fagan serve` runs THE SYSTEM SHALL start the MCP server on stdio and write logs only to stderr.
-2. **FM-R15.2** WHEN `fagan hook suggest` runs THE SYSTEM SHALL read the hook payload from STDIN, use its `cwd` (or the process working directory), count changed LOC of the working tree against `HEAD` including untracked files with the same rules as FM-R4.4, and print one short suggestion to run the moderator only if the count exceeds `suggestThresholdLoc`, no inspection is in a non-terminal phase, and no Closed inspection's `diff.patch` equals the current diff.
+2. **FM-R15.2** WHEN `fagan hook suggest` runs THE SYSTEM SHALL read the hook payload from STDIN, use its `cwd` (or the process working directory), count changed LOC of the working tree against `HEAD` including untracked files with the same rules as FM-R4.4, and print one short suggestion to run the moderator only if the count exceeds `suggestThresholdLoc`, no inspection is in a non-terminal phase, and no Closed inspection's `diff.patch` equals the current diff. A changed file whose current blob hash equals its blob hash in a Closed inspection's passing follow-up attempt is covered and SHALL not be counted. WHEN the uncovered count also exceeds `sizeLimitLoc` THE SYSTEM SHALL say in the suggestion that `open_inspection` would refuse it with `SIZE_LIMIT_EXCEEDED` and that the change should be split.
 3. **FM-R15.3** WHEN `fagan hook suggest` finishes, for any input or error THE SYSTEM SHALL exit 0.
 4. **FM-R15.4** WHEN `fagan follow-up --latest` runs THE SYSTEM SHALL run follow-up (as FM-R9) on the highest-numbered inspection in Rework or FollowUp, print the result, and exit 0; WHEN no such inspection exists THE SYSTEM SHALL print that and exit 0. `fagan follow-up <id>` does the same for one inspection.
 5. **FM-R15.5** WHEN `fagan abandon <id> --reason <text>` runs on a non-terminal inspection with a valid waiver reason THE SYSTEM SHALL move it to Abandoned, set `abandonedAt` and `abandonReason`, and append an event; otherwise it SHALL print the error and exit 1.
@@ -193,7 +193,7 @@ Glossary:
 **User story:** As the Author, I want agents blocked from committing while an inspection has open majors, so that unresolved majors cannot slip into history.
 
 1. **FM-R16.1** WHEN `fagan hook gate` reads a shell command that is not a git commit THE SYSTEM SHALL exit 0, whatever the store holds.
-2. **FM-R16.2** WHEN the command contains a segment (split on `&&`, `||`, `;`, `|` and newlines) whose program is `git` and whose subcommand, after skipping leading environment assignments and git global options such as `-c key=value`, `-C <path>` and `--no-pager`, is `commit` THE SYSTEM SHALL treat it as a git commit.
+2. **FM-R16.2** WHEN the command contains a segment (split on `&&`, `||`, `;`, `|`, `&`, parentheses and newlines, plus the bodies of `$(...)` and backticks) whose program is `git` and whose subcommand, after skipping leading environment assignments, the wrappers `command`, `exec`, `time`, `nohup`, `env`, `nice`, `timeout`, `stdbuf`, `xargs`, `sudo` and `doas` with their options, and git global options such as `-c key=value`, `-C <path>` and `--no-pager`, is `commit` THE SYSTEM SHALL treat it as a git commit, and SHALL check the repository it runs in: the payload `cwd` moved, in order, by `env -C`/`--chdir`, `sudo -D`/`--chdir` and each `git -C <path>` (relative paths resolve against the previous directory). Known gaps are listed in design.md "Commit gate scope".
 3. **FM-R16.3** WHEN a git commit is attempted and any inspection in a non-terminal phase has an open major THE SYSTEM SHALL write the inspection IDs and blocking defect IDs to stderr and stdout and exit 2.
 4. **FM-R16.4** WHEN a git commit is attempted and no inspection has an open major, or `.fagan/inspections/` does not exist, THE SYSTEM SHALL exit 0.
 5. **FM-R16.5** WHEN the STDIN payload is not JSON or has no command string in `tool_input` (checked fields: `command`, `cmd`) THE SYSTEM SHALL write a warning to stderr and exit 0.

@@ -52,6 +52,7 @@ const reportArb: fc.Arbitrary<Report> = fc
       oldNo: fc.option(fc.integer({ min: 1, max: 1e6 }), { nil: null }),
       newNo: fc.option(fc.integer({ min: 1, max: 1e6 }), { nil: null }),
       text: text(),
+      noNewlineAtEof: fc.boolean(),
     });
     return fc.record({
       schemaVersion: fc.constant("fagan-report/1" as const),
@@ -192,6 +193,7 @@ const reportArb: fc.Arbitrary<Report> = fc
               ),
               blocking: fc.subarray(defectIds),
               passed: fc.boolean(),
+              blobs: fc.array(fc.record({ path: text(1, 30), blob: fc.option(sha, { nil: null }) }), { maxLength: 3 }),
             }),
             { maxLength: 3 },
           )

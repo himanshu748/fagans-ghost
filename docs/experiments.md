@@ -5,7 +5,7 @@ Results of the experiments listed in PLAN.md section 2.4. Each row records what 
 | ID | Question (short) | Step | Status | Result |
 | --- | --- | --- | --- | --- |
 | E1 | Do workspace hooks fire in a V3 session driven by T3 Code over ACP? | 3 | Not run yet | |
-| E2 | Shell tool ID and command field in `tool_input` | 3 | Not run yet | |
+| E2 | Shell tool ID and command field in `tool_input` | 3 | Not run yet | See "Review v1 follow-ups" below |
 | E3 | Does exit code 2 block the shell call in CLI V3? Where does stderr show? | 3 | Not run yet | |
 | E4 | Does matcher `@fagan/record_rework` match `mcp_fagan_record_rework`? | 3 | Not run yet | |
 | E5 | Does a `Stop` hook `confirm` block work over ACP? | 3 | Not run yet | |
@@ -107,3 +107,19 @@ Only real failures found by fast-check are recorded here, with the counterexampl
 - Counterexample (`seed: 161279075`, intermittent, about one full-suite run in five): an event whose free-form `data` from `fc.jsonValue()` holds `{ "constructor": -0 }`.
 - Failure: the same JSON limitation as P4-2, in event data instead of metrics. The parsed report had `"constructor": 0`. The P4-2 fix only covered metric fields.
 - Fix: `EventDataSchema` in `src/core/schema.ts` also rejects `-0` at any depth (`hasNegativeZero`). The ops only put IDs, strings and non-negative counts into event data, so no real call is affected. Regression test: `FM-R11.3 event data containing negative zero is rejected instead of coming back as 0`.
+
+## Review v1 fixes (step 2)
+
+A semantic review of the step 2 code (FEAT-001 to FEAT-003) on 2026-11-16 returned NEEDS_CHANGES with 7 issues. What changed for each, and the tests that cover it (all in `packages/fagan-mcp/test/`):
+
+1. Rework and follow-up durations were mismeasured: rework was `followupStart - reworkStart`, so a `follow_up` before the first `record_rework` gave `null (non_positive_duration)` and later rework rounds counted as follow-up time. `src/core/metrics.ts` now sums time spent in each phase from `meetingEnd` and the follow-up attempt times (FM-R10.1, design.md "Metrics durations"); FM-R1.5 and FM-R8.5 now call `reworkStart` and `followupStart` informational stamps. Tests: `metrics.test.ts` (`FM-R10.1 rework sums every Rework visit in a fail-then-pass loop`, `FM-R10.1 FM-R10.3 follow-up time without defects, open and abandoned Rework`) and a rework duration assertion in `contract.test.ts`, whose flow runs a failing `follow_up` before any rework.
+2. Concurrent tool calls in one server got `LOCKED`. `withLock` in `src/store/fs.ts` now queues same-process callers per lock path and retries another process's fresh lock every 25 ms for up to 2 s (FM-R13.2). Tests: `store.test.ts` (`queues concurrent calls from one process instead of returning LOCKED (review v1 issue 2)`, `parallel transacts on one inspection all succeed with one event each`, `waits for a lock that another process releases within the retry window`, `returns LOCKED while another process holds a fresh lock, and removes only its own lock`).
+3. The gate's copy of the exit rule (`openMajorIds`) had no property test. Tests: `followup.property.test.ts` (`FM-R9.4 FM-R16.3 open majors right after an attempt equal its blocking IDs, and a later fix reopens a major`) and `cli.test.ts` (`FM-R9.3 FM-R16.3 a fixed major blocks until follow-up verifies it (review v1 issue 3)`).
+4. The gate fails open until E2 confirms the payload field. Deliberate (FM-R16.5); carried into step 3, see "Review v1 follow-ups" below. No code change.
+5. `hook suggest` fired again after every inspection with rework, and suggested diffs above `sizeLimitLoc`. Follow-up attempts now store working-tree blob hashes of the packet files (`AttemptSchema.blobs`, FM-R9.6), files whose content a Closed inspection's passing attempt accepted are not counted, and the message names `sizeLimitLoc` and `SIZE_LIMIT_EXCEEDED` (FM-R15.2). Tests: `cli.test.ts` (`FM-R15.2 stays quiet after a Closed inspection whose rework changed the diff (review v1 issue 5)`, `FM-R15.2 says when the diff is above sizeLimitLoc (review v1 issue 5)`). The report arbitrary in `report.property.test.ts` now generates `blobs` too.
+6. `sudo`, `nice`, `timeout` and `xargs` let a commit through, and `git -C <other> commit` was checked against the payload `cwd`. `src/core/gate.ts` now knows `nice`, `timeout`, `stdbuf`, `xargs`, `sudo` and `doas` with their options, and `gitCommitTargets` returns the `-C`/`--chdir` directories that the CLI resolves in order (FM-R16.2). The remaining gaps are listed in design.md "Commit gate scope". Tests: `gate.test.ts` (wrapped and non-commit wrapper cases, `reports the directories a commit runs in, in order`), wrappers added to the generators in `gate.property.test.ts`, and `cli.test.ts` (`FM-R16.2 FM-R16.3 checks the repo named by git -C, not only the payload cwd (review v1 issue 6)`).
+7. The no-newline marker was dropped from packets. `noNewlineAtEof` is now stored on unit lines in `packet.json`, returned by `get_packet` and printed as git's marker in `report.txt` (FM-R4.7). Test: `packet.test.ts` (`FM-R4.7 keeps the no-newline-at-end-of-file marker in packet units and report.txt`).
+
+## Review v1 follow-ups (for step 3)
+
+- E2 and the commit gate (review v1 issue 4): `fagan hook gate` reads `tool_input.command`, then `tool_input.cmd`, and allows the call with a stderr warning when neither is a string (FM-R16.5). If Kiro uses another field, every commit passes. Step 3 acceptance for the gate is "the gate blocked a real `git commit` in a live Kiro session", not only "payload field recorded". Tracked as task 16 in `.kiro/specs/fagan-mcp/tasks.md`.

@@ -186,6 +186,8 @@ export const UnitLineSchema = z.strictObject({
   oldNo: LineNo.nullable(),
   newNo: LineNo.nullable(),
   text: z.string(),
+  /** True when git printed `\ No newline at end of file` after this line (FM-R4.7). */
+  noNewlineAtEof: z.boolean(),
 });
 export type UnitLine = z.infer<typeof UnitLineSchema>;
 
@@ -288,6 +290,13 @@ export const AttemptSchema = z.strictObject({
   defects: z.array(AttemptDefectSchema),
   blocking: z.array(DefectIdSchema),
   passed: z.boolean(),
+  /**
+   * Working-tree blob hash of each packet file when the attempt ran, by path
+   * in byte order (null when the file was gone). `hook suggest` uses the
+   * passing attempt's hashes to know which content a Closed inspection
+   * accepted after rework (FM-R9.6, FM-R15.2).
+   */
+  blobs: z.array(z.strictObject({ path: z.string().min(1), blob: z.string().nullable() })),
 });
 export type Attempt = z.infer<typeof AttemptSchema>;
 

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FaganError } from "../src/core/errors.js";
@@ -65,14 +65,51 @@ describe("FM-R13.1 atomic writes", () => {
 });
 
 describe("FM-R13.2 FM-R13.3 lock", () => {
-  it("returns LOCKED while a fresh lock is held and removes its own lock after", async () => {
-    let inner: string | null = "not run";
-    await withLock(lockPath(root), async () => {
-      expect(existsSync(lockPath(root))).toBe(true);
-      inner = await codeOf(withLock(lockPath(root), async () => undefined));
-    });
-    expect(inner).toBe("LOCKED");
+  it("returns LOCKED while another process holds a fresh lock, and removes only its own lock", async () => {
+    // Another process's lock: a fresh file this process did not create.
+    writeFileSync(lockPath(root), "{}");
+    const started = Date.now();
+    expect(await codeOf(withLock(lockPath(root), async () => undefined, { retryMs: 100, pollMs: 10 }))).toBe("LOCKED");
+    expect(Date.now() - started).toBeGreaterThanOrEqual(90);
+    expect(existsSync(lockPath(root))).toBe(true);
+    await withLock(lockPath(root), async () => undefined, { staleMs: -1 });
     expect(existsSync(lockPath(root))).toBe(false);
+  });
+
+  it("waits for a lock that another process releases within the retry window", async () => {
+    writeFileSync(lockPath(root), "{}");
+    setTimeout(() => rmSync(lockPath(root), { force: true }), 50);
+    await expect(withLock(lockPath(root), async () => "ok", { retryMs: 2000, pollMs: 10 })).resolves.toBe("ok");
+    expect(existsSync(lockPath(root))).toBe(false);
+  });
+
+  it("queues concurrent calls from one process instead of returning LOCKED (review v1 issue 2)", async () => {
+    const order: string[] = [];
+    const work = (name: string) =>
+      withLock(
+        lockPath(root),
+        async () => {
+          order.push(`${name}:start`);
+          await new Promise((r) => setTimeout(r, 20));
+          order.push(`${name}:end`);
+          return name;
+        },
+        // No retry: only the in-process queue can make the second call succeed.
+        { retryMs: 0 },
+      );
+    await expect(Promise.all([work("a"), work("b"), work("c")])).resolves.toEqual(["a", "b", "c"]);
+    expect(order).toEqual(["a:start", "a:end", "b:start", "b:end", "c:start", "c:end"]);
+  });
+
+  it("parallel transacts on one inspection all succeed with one event each", async () => {
+    const id = await create();
+    const call = (role: string) =>
+      transact(root, id, fakeClock(), (s) =>
+        getPacket(s, { role, phase: "preparation", unitIds: null, cursor: null, limit: 20 }, "2026-11-15T10:00:05.000Z", testChecklists),
+      );
+    const results = await Promise.allSettled([call("inspector-logic"), call("inspector-interfaces"), call("reader")]);
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled", "fulfilled"]);
+    expect((await readEvents(root, id)).map((e) => e.seq)).toEqual([1, 2, 3, 4]);
   });
 
   it("removes the lock even when the work throws", async () => {

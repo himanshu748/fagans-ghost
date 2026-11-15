@@ -4,8 +4,11 @@ import { buildPacket, comparePaths, countChangedLoc, selectChecklist, splitHunk 
 import { loadChecklists, assertConfigChecklists } from "../src/store/checklists.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { ConfigSchema } from "../src/core/schema.js";
-import { SAMPLE_DIFF, testConfig } from "./helpers.js";
+import { ConfigSchema, PacketSchema } from "../src/core/schema.js";
+import { computeMetrics } from "../src/core/metrics.js";
+import { buildReport, renderReportTxt } from "../src/core/report.js";
+import { createInspectionState } from "../src/core/state.js";
+import { PASS, SAMPLE_DIFF, testConfig } from "./helpers.js";
 
 function hunkOf(kinds: string): DiffHunk {
   // kinds: string of '+', '-', ' ' characters.
@@ -20,6 +23,45 @@ function hunkOf(kinds: string): DiffHunk {
 }
 
 describe("FM-R4.1 FM-R4.2 FM-R4.3 packet splitting", () => {
+  // Review v1 issue 7: a change that only adds the final newline must not
+  // reach the Reader as an identical -x/+x pair.
+  it("FM-R4.7 keeps the no-newline-at-end-of-file marker in packet units and report.txt", () => {
+    const diff = [
+      "diff --git a/n.txt b/n.txt",
+      "--- a/n.txt",
+      "+++ b/n.txt",
+      "@@ -1,2 +1,2 @@",
+      " a",
+      "-b",
+      "\\ No newline at end of file",
+      "+b",
+      "",
+    ].join("\n");
+    const packet = buildPacket(parseUnifiedDiff(diff), testConfig);
+    expect(packet.units[0]?.lines.map((l) => [l.kind, l.text, l.noNewlineAtEof])).toEqual([
+      ["ctx", "a", false],
+      ["del", "b", true],
+      ["add", "b", false],
+    ]);
+    expect(PacketSchema.parse(packet)).toEqual(packet);
+    const state = createInspectionState({
+      id: "insp-0001",
+      title: "Final newline",
+      range: { base: "HEAD", head: "WORKTREE", baseSha: "a".repeat(40), headSha: null },
+      authorOverview: null,
+      entry: { build: PASS, tests: PASS, size: { changedLoc: packet.changedLoc, limit: 1500, passed: true } },
+      packet,
+      planningStart: "2026-11-15T10:00:00.000Z",
+      planningEnd: "2026-11-15T10:00:01.000Z",
+    });
+    const metrics = computeMetrics({ timestamps: state.inspection.timestamps, changedLoc: packet.changedLoc, defects: [], attempts: [], rateWarnings: testConfig.rateWarnings, computedAt: "2026-11-15T10:00:02.000Z" });
+    const txt = renderReportTxt(buildReport({ state, metrics, events: [], checklists: new Map(), generatorVersion: "0.0.0", exportedAt: "2026-11-15T10:00:02.000Z" }));
+    const lines = txt.split("\n");
+    const del = lines.findIndex((l) => /\s2 +- b[\s|]*$/.test(l));
+    expect(del, txt).toBeGreaterThan(-1);
+    expect(lines[del + 1]).toContain("\\ No newline at end of file");
+    expect(lines.filter((l) => l.includes("No newline at end of file"))).toHaveLength(1);
+  });
   it("orders files by byte order and numbers units without gaps", () => {
     const packet = buildPacket(parseUnifiedDiff(SAMPLE_DIFF), testConfig);
     expect(packet.files.map((f) => f.path)).toEqual(["docs/x.md", "src/a.ts"]);

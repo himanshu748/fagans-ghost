@@ -19,7 +19,7 @@ import {
   recordReworkService,
   type ServiceContext,
 } from "../src/service/service.js";
-import { CLI, assertBuilt, fixtureConfig, fixtureRepo } from "./fixture.js";
+import { CALC_V3, CLI, assertBuilt, fixtureConfig, fixtureRepo } from "./fixture.js";
 
 interface Run {
   status: number | null;
@@ -103,6 +103,34 @@ describe("fagan hook gate", () => {
     }
     const viaCmd = fagan(root, ["hook", "gate"], JSON.stringify({ tool_input: { cmd: "git commit -m x" } }));
     expect(viaCmd.status).toBe(2);
+    // Review v1 issue 6: wrapped commits are commits too.
+    for (const cmd of ["sudo git commit -m x", "timeout 60 git commit -m x", "nice -n 5 git commit", "echo m | xargs git commit -m"]) {
+      expect(fagan(root, ["hook", "gate"], payload(cmd)).status, cmd).toBe(2);
+    }
+  });
+
+  it("FM-R16.2 FM-R16.3 checks the repo named by git -C, not only the payload cwd (review v1 issue 6)", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    const clean = repo();
+    expect(fagan(clean, ["hook", "gate"], payload(`git -C ${JSON.stringify(root)} commit -m x`)).status).toBe(2);
+    expect(fagan(clean, ["hook", "gate"], payload(`sudo -D ${JSON.stringify(root)} git commit -m x`)).status).toBe(2);
+    expect(fagan(root, ["hook", "gate"], payload(`git -C ${JSON.stringify(clean)} commit -m x`)).status).toBe(0);
+    expect(fagan(clean, ["hook", "gate"], payload("git -C does-not-exist commit -m x")).status).toBe(0);
+  });
+
+  it("FM-R9.3 FM-R16.3 a fixed major blocks until follow-up verifies it (review v1 issue 3)", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    const ctx = ctxFor(root);
+    writeFileSync(join(root, "src", "calc.ts"), CALC_V3);
+    await recordReworkService(ctx, { inspection_id: ID, role: "author", items: [{ defect_id: "D001", resolution: "fixed", note: "Removed the + 1." }] });
+    const blocked = fagan(root, ["hook", "gate"], payload("git commit -m x"));
+    expect(blocked.status).toBe(2);
+    expect(blocked.stdout).toContain("insp-0001: D001");
+    const fu = await followUpService(ctx, { inspection_id: ID, caller: { kind: "tool", role: "moderator" }, run_checks: true });
+    expect(fu.passed).toBe(true);
+    expect(fagan(root, ["hook", "gate"], payload("git commit -m x")).status).toBe(0);
   });
 
   it("FM-R15.2 FM-R16.3 uses the payload cwd when present", async () => {
@@ -180,6 +208,29 @@ describe("fagan hook suggest", () => {
     // A new change makes the diff differ again.
     writeFileSync(join(closed, "README.md"), "# demo\nmore\n");
     expect(fagan(closed, ["hook", "suggest"], "{}").stdout).toContain("changed lines against HEAD");
+  });
+
+  it("FM-R15.2 stays quiet after a Closed inspection whose rework changed the diff (review v1 issue 5)", async () => {
+    const root = repo({ ...fixtureConfig, suggestThresholdLoc: 0 });
+    await toReworkWithMajor(root);
+    const ctx = ctxFor(root);
+    writeFileSync(join(root, "src", "calc.ts"), CALC_V3);
+    await recordReworkService(ctx, { inspection_id: ID, role: "author", items: [{ defect_id: "D001", resolution: "fixed", note: "Removed the + 1." }] });
+    const fu = await followUpService(ctx, { inspection_id: ID, caller: { kind: "tool", role: "moderator" }, run_checks: true });
+    expect(fu.phase).toBe("Closed");
+    // The working tree now differs from diff.patch (the fix), but it is what the inspection accepted.
+    expect(fagan(root, ["hook", "suggest"], "{}")).toEqual({ status: 0, stdout: "", stderr: "" });
+    // Editing an inspected file after the close makes it uncovered again.
+    writeFileSync(join(root, "src", "calc.ts"), `${CALC_V3}// later\n`);
+    expect(fagan(root, ["hook", "suggest"], "{}").stdout).toMatch(/1 file\(s\) already covered/);
+  });
+
+  it("FM-R15.2 says when the diff is above sizeLimitLoc (review v1 issue 5)", () => {
+    const root = repo({ ...fixtureConfig, suggestThresholdLoc: 0, sizeLimitLoc: 1 });
+    const r = fagan(root, ["hook", "suggest"], "{}");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("above sizeLimitLoc 1");
+    expect(r.stdout).toContain("SIZE_LIMIT_EXCEEDED");
   });
 
   it("FM-R15.3 exits 0 for garbage input and outside a git repo", () => {

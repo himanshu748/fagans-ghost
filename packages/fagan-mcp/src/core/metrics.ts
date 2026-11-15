@@ -1,6 +1,6 @@
 // Metrics from real timestamps (FM-R10.1 to FM-R10.8, PLAN.md section 9).
 // Values are stored unrounded. Every number is finite or null with a reason.
-import type { ByType, Config, Defect, MetricField, Metrics, NullReason, Timestamps } from "./schema.js";
+import type { Attempt, ByType, Config, Defect, MetricField, Metrics, NullReason, Timestamps } from "./schema.js";
 
 const MS_PER_HOUR = 3_600_000;
 
@@ -8,6 +8,8 @@ export interface MetricsInput {
   timestamps: Timestamps;
   changedLoc: number;
   defects: readonly Defect[];
+  /** Follow-up attempts in order (`followup.json`); each one ends a Rework visit. */
+  attempts: ReadonlyArray<Pick<Attempt, "at" | "passed">>;
   rateWarnings: Config["rateWarnings"];
   computedAt: string;
 }
@@ -49,16 +51,61 @@ export function countByType(defects: readonly Defect[]): ByType {
   return out;
 }
 
+/**
+ * Total time spent in Rework and in FollowUp (FM-R10.1, design.md "Metrics").
+ * The phase after the meeting is Rework when the meeting logged defects, else
+ * FollowUp, and it starts at `meetingEnd`. Each follow-up attempt ends the
+ * current visit at its `at`; a call made from Rework passes through FollowUp
+ * inside the call, so it adds a zero-length FollowUp visit. A failed attempt
+ * starts a new Rework visit. A visit still open (the inspection is still in
+ * that phase) makes the total `phase_not_reached`; abandoning ends the open
+ * visit at `abandonedAt`. A phase never entered is `phase_not_reached`.
+ */
+export function reworkAndFollowupMs(
+  t: Pick<Timestamps, "meetingEnd" | "abandonedAt">,
+  meetingHadDefects: boolean,
+  attempts: ReadonlyArray<Pick<Attempt, "at" | "passed">>,
+): { rework: Valued; followup: Valued } {
+  const notReached: Valued = { value: null, reason: "phase_not_reached" };
+  const start = ms(t.meetingEnd);
+  if (start === null) return { rework: notReached, followup: notReached };
+  const total = { Rework: 0, FollowUp: 0 };
+  const entered = { Rework: false, FollowUp: false };
+  let phase: "Rework" | "FollowUp" | "Closed" = meetingHadDefects ? "Rework" : "FollowUp";
+  let since = start;
+  entered[phase] = true;
+  for (const a of attempts) {
+    if (phase === "Closed") break;
+    const at = ms(a.at);
+    if (at === null) return { rework: notReached, followup: notReached };
+    total[phase] += at - since;
+    entered.FollowUp = true;
+    phase = a.passed ? "Closed" : "Rework";
+    if (phase === "Rework") entered.Rework = true;
+    since = at;
+  }
+  const open = { Rework: false, FollowUp: false };
+  if (phase !== "Closed") {
+    const end = ms(t.abandonedAt);
+    if (end === null) open[phase] = true;
+    else total[phase] += end - since;
+  }
+  const result = (p: "Rework" | "FollowUp"): Valued =>
+    entered[p] && !open[p] && Number.isFinite(total[p]) ? { value: total[p], reason: null } : notReached;
+  return { rework: result("Rework"), followup: result("FollowUp") };
+}
+
 export function computeMetrics(input: MetricsInput): Metrics {
   const t = input.timestamps;
   const loc = input.changedLoc;
+  const later = reworkAndFollowupMs(t, input.defects.length > 0, input.attempts);
   const durations: Record<string, Valued> = {
     planning: durationMs(t.planningStart, t.planningEnd),
     overview: durationMs(t.overviewStart, t.preparationStart),
     preparation: durationMs(t.preparationStart, t.meetingStart),
     meeting: durationMs(t.meetingStart, t.meetingEnd),
-    rework: durationMs(t.reworkStart, t.followupStart),
-    followup: durationMs(t.followupStart, t.closedAt),
+    rework: later.rework,
+    followup: later.followup,
   };
   const prep = ratePerHour(loc, durations["preparation"] as Valued);
   const insp = ratePerHour(loc, durations["meeting"] as Valued);

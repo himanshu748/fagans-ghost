@@ -106,7 +106,7 @@ export function splitHunk(hunk: DiffHunk, maxUnitLines: number): UnitDraft[] {
     return {
       hunkHeader: header,
       changedLoc: g.changed,
-      lines: g.lines.map((l) => ({ kind: l.kind, oldNo: l.oldNo, newNo: l.newNo, text: l.text })),
+      lines: g.lines.map((l) => ({ kind: l.kind, oldNo: l.oldNo, newNo: l.newNo, text: l.text, noNewlineAtEof: l.noNewlineAtEof })),
     };
   });
 }

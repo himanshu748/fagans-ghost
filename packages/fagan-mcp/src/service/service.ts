@@ -466,22 +466,49 @@ export async function suggestion(cwd: string): Promise<string | null> {
   const root = await resolveRoot(cwd);
   const config = await loadConfig(root);
   const closedDiffs: string[] = [];
+  /** Content each Closed inspection accepted: path -> blob hashes at its passing follow-up. */
+  const accepted = new Map<string, Set<string | null>>();
   for (const id of await listInspectionIds(root)) {
     const state = await loadState(root, id);
     if (!isTerminal(state.inspection.phase)) return null;
-    if (state.inspection.phase === "Closed") closedDiffs.push(await readDiff(root, id));
+    if (state.inspection.phase !== "Closed") continue;
+    closedDiffs.push(await readDiff(root, id));
+    const passing = state.followup.attempts.find((a) => a.passed);
+    for (const b of passing?.blobs ?? []) {
+      const set = accepted.get(b.path) ?? new Set<string | null>();
+      set.add(b.blob);
+      accepted.set(b.path, set);
+    }
   }
   const diff = await collectDiff(root, { base: "HEAD", head: WORKTREE, includeUntracked: true, excludePaths: STORE_EXCLUDE_PATHS });
-  const loc = countChangedLoc(diff.files, config.exclude);
-  if (loc <= config.suggestThresholdLoc) return null;
   if (closedDiffs.includes(diff.diffText)) return null;
-  return (
-    `fagan: ${loc} changed lines against HEAD (threshold ${config.suggestThresholdLoc}) and no inspection covers them. ` +
-    "Consider asking the moderator agent to open an inspection with open_inspection."
-  );
+  // A file is covered when its current content is what a Closed inspection
+  // accepted, including the Author's rework (review v1 issue 5).
+  const candidates = diff.files.filter((f) => accepted.has(f.path));
+  const blobs = await currentBlobs(root, candidates.map((f) => f.path));
+  const uncovered = diff.files.filter((f) => {
+    const set = accepted.get(f.path);
+    return set === undefined || !blobs.has(f.path) || !set.has(blobs.get(f.path) ?? null);
+  });
+  const loc = countChangedLoc(uncovered, config.exclude);
+  if (loc <= config.suggestThresholdLoc) return null;
+  const covered = diff.files.length - uncovered.length;
+  const head =
+    `fagan: ${loc} changed lines against HEAD (threshold ${config.suggestThresholdLoc}) and no inspection covers them` +
+    (covered > 0 ? ` (${covered} file(s) already covered by a Closed inspection are not counted). ` : ". ");
+  if (loc > config.sizeLimitLoc) {
+    return (
+      head +
+      `That is above sizeLimitLoc ${config.sizeLimitLoc}, so open_inspection would refuse it with SIZE_LIMIT_EXCEEDED. ` +
+      "Split the change into smaller pieces (for example commit part of it and inspect the rest) before asking the moderator agent to open an inspection."
+    );
+  }
+  return head + "Consider asking the moderator agent to open an inspection with open_inspection.";
 }
 
 export interface GateBlock {
+  /** Repo root whose store holds the inspection. */
+  root: string;
   inspection_id: string;
   defect_ids: string[];
 }
@@ -507,7 +534,7 @@ export async function gateBlocks(cwd: string): Promise<GateBlock[]> {
     const s = await loadState(root, id);
     if (isTerminal(s.inspection.phase)) continue;
     const open = openMajorIds(s.defects.defects, s.rework.items, s.followup.attempts, config.waiverMinChars);
-    if (open.length > 0) blocks.push({ inspection_id: id, defect_ids: open });
+    if (open.length > 0) blocks.push({ root, inspection_id: id, defect_ids: open });
   }
   return blocks;
 }

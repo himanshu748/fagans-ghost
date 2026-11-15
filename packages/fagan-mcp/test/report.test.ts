@@ -37,6 +37,7 @@ function sampleReport() {
     timestamps: s.inspection.timestamps,
     changedLoc: s.packet.changedLoc,
     defects: s.defects.defects,
+    attempts: s.followup.attempts,
     rateWarnings: testConfig.rateWarnings,
     computedAt: "2026-11-15T10:21:00.000Z",
   });

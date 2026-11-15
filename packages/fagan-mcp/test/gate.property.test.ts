@@ -17,19 +17,39 @@ const argArb = fc.oneof(
 const assignment = fc.stringMatching(/^[A-Z_][A-Z0-9_]{0,5}$/).chain((k) => bareWord.map((v) => `${k}=${v}`));
 const gitProgram = fc.constantFrom("git", "/usr/bin/git", "'git'", '"git"');
 const globalOpt = fc.constantFrom("-c user.name=x", "-c core.pager=cat", "-C sub", "--no-pager", "-p", "--git-dir=.git", "--work-tree wt", "--bare");
+/** Wrapper programs with options and operands (review v1 issue 6). */
+const wrapper = fc.constantFrom(
+  "sudo",
+  "sudo -u root",
+  "sudo --user root -E",
+  "sudo -D /tmp",
+  "doas -u root",
+  "nice",
+  "nice -n 5",
+  "timeout 60",
+  "timeout -s KILL -k 5 1m",
+  "xargs",
+  "xargs -I {} -n 1",
+  "stdbuf -o L",
+  "env -i",
+  "env -u HOME -C /tmp",
+  "command",
+  "nohup",
+  "time -p",
+);
 
 const commitSegment = fc
-  .tuple(fc.array(assignment, { maxLength: 2 }), gitProgram, fc.array(globalOpt, { maxLength: 3 }), fc.array(argArb, { maxLength: 4 }))
-  .map(([env, git, opts, args]) => [...env, git, ...opts, "commit", ...args].join(" "));
+  .tuple(fc.array(wrapper, { maxLength: 2 }), fc.array(assignment, { maxLength: 2 }), gitProgram, fc.array(globalOpt, { maxLength: 3 }), fc.array(argArb, { maxLength: 4 }))
+  .map(([wrappers, env, git, opts, args]) => [...wrappers, ...env, git, ...opts, "commit", ...args].join(" "));
 
 const otherProgram = fc.constantFrom("echo", "ls", "npm", "printf", "grep", "gitx", "git-lfs", "make", "cat");
 const nonGitSegment = fc
-  .tuple(fc.array(assignment, { maxLength: 1 }), otherProgram, fc.array(argArb, { maxLength: 5 }))
-  .map(([env, prog, args]) => [...env, prog, ...args].join(" "));
+  .tuple(fc.array(wrapper, { maxLength: 1 }), fc.array(assignment, { maxLength: 1 }), otherProgram, fc.array(argArb, { maxLength: 5 }))
+  .map(([wrappers, env, prog, args]) => [...wrappers, ...env, prog, ...args].join(" "));
 const otherSub = fc.constantFrom("status", "log", "show", "add", "diff", "commit-tree", "rev-parse", "push");
 const gitNonCommitSegment = fc
-  .tuple(gitProgram, fc.array(globalOpt, { maxLength: 2 }), otherSub, fc.array(argArb, { maxLength: 4 }))
-  .map(([git, opts, sub, args]) => [git, ...opts, sub, ...args].join(" "));
+  .tuple(fc.array(wrapper, { maxLength: 1 }), gitProgram, fc.array(globalOpt, { maxLength: 2 }), otherSub, fc.array(argArb, { maxLength: 4 }))
+  .map(([wrappers, git, opts, sub, args]) => [...wrappers, git, ...opts, sub, ...args].join(" "));
 const safeSegment = fc.oneof(nonGitSegment, gitNonCommitSegment);
 
 const separator = fc.constantFrom(" && ", " || ", "; ", " | ", "\n", " ; ", " & ");

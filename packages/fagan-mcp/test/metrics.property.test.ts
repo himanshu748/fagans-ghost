@@ -78,11 +78,13 @@ describe("metrics properties", () => {
         defectsArb,
         limitArb,
         limitArb,
-        (timestamps, changedLoc, defects, maxPrep, maxInsp) => {
+        fc.array(fc.record({ at: iso, passed: fc.boolean() }), { maxLength: 4 }),
+        (timestamps, changedLoc, defects, maxPrep, maxInsp, attempts) => {
           const m = computeMetrics({
             timestamps,
             changedLoc,
             defects,
+            attempts,
             rateWarnings: { maxPreparationLocPerHour: maxPrep, maxInspectionLocPerHour: maxInsp },
             computedAt: "2026-11-15T10:00:00.000Z",
           });
@@ -134,6 +136,7 @@ describe("metrics properties", () => {
               },
               changedLoc,
               defects: [],
+              attempts: [],
               rateWarnings: { maxPreparationLocPerHour: null, maxInspectionLocPerHour: null },
               computedAt: at(0),
             });

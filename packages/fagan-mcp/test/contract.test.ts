@@ -238,6 +238,16 @@ describe("fagan-mcp over stdio", () => {
     // Metrics and the report.
     const metrics = await ok("metrics", { inspection_id: id });
     expect(MetricsSchema.parse(metrics).defects).toEqual({ total: 2, major: 1, minor: 1 });
+    // Review v1 issue 1: this flow runs follow_up before the first record_rework,
+    // which used to give rework null (non_positive_duration). Rework is the time
+    // from meetingEnd to the passing attempt; the failed attempt does not end it.
+    const dir = join(repo.path, ".fagan", "inspections", id);
+    const timestamps = (JSON.parse(readFileSync(join(dir, "inspection.json"), "utf8")) as { timestamps: { meetingEnd: string } }).timestamps;
+    const attempts = (JSON.parse(readFileSync(join(dir, "followup.json"), "utf8")) as { attempts: Array<{ at: string; passed: boolean }> }).attempts;
+    expect(attempts.map((a) => a.passed)).toEqual([false, true]);
+    const durations = MetricsSchema.parse(metrics).durationsMs;
+    expect(durations.rework).toBe(Date.parse(attempts[1]?.at ?? "") - Date.parse(timestamps.meetingEnd));
+    expect(durations.followup).toBe(0);
     const exported = await ok("export_report", { inspection_id: id, role: "author" });
     expect(exported["schema_version"]).toBe("fagan-report/1");
     expect(exported["phase"]).toBe("Closed");

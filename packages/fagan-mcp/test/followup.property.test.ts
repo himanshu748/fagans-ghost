@@ -1,5 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { openMajorIds } from "../src/core/followup.js";
 import { followUp } from "../src/core/ops.js";
 import type { CheckResult, Defect, PacketFile, ReworkItem } from "../src/core/schema.js";
 import type { InspectionState } from "../src/core/state.js";
@@ -111,6 +112,37 @@ describe("follow-up properties", () => {
             expect(out.result.blocking).toContain(d.defect_id);
           }
         }
+      }),
+      { numRuns: 1000 },
+    );
+  });
+
+  // Review v1 issue 3: the commit gate and record_rework use openMajorIds
+  // (currentStatus), a second copy of the exit rule. Tie it to the attempt.
+  it("FM-R9.4 FM-R16.3 open majors right after an attempt equal its blocking IDs, and a later fix reopens a major", () => {
+    fc.assert(
+      fc.property(scenarioArb, fc.array(fc.boolean(), { minLength: 8, maxLength: 8 }), (sc, refix) => {
+        const state = stateFor(sc);
+        const blobs = new Map(FILES.map((f) => [f, sc.changed[f] ? `now-${f}` : `after-${f}`]));
+        const out = followUp(
+          state,
+          { role: "author", checks: { build: check(sc.build), tests: check(sc.tests) }, currentBlobs: blobs },
+          "2026-11-15T11:00:00.000Z",
+          { requireLocationChange: sc.requireLocationChange, waiverMinChars: sc.waiverMinChars },
+        );
+        const s = out.state;
+        expect(openMajorIds(s.defects.defects, s.rework.items, s.followup.attempts, sc.waiverMinChars)).toEqual(out.result.blocking);
+
+        // The Author records a fix again for some defects after the attempt.
+        const again = s.defects.defects.filter((_, i) => refix[i] === true).map((d) => d.id);
+        const items: ReworkItem[] = [
+          ...s.rework.items.filter((r) => !again.includes(r.defectId)),
+          ...again.map((defectId): ReworkItem => ({ defectId, resolution: "fixed", note: "again", reason: null, recordedAt: "2026-11-15T11:05:00.000Z" })),
+        ];
+        const expected = s.defects.defects
+          .filter((d) => d.severity === "major" && (out.result.blocking.includes(d.id) || again.includes(d.id)))
+          .map((d) => d.id);
+        expect(openMajorIds(s.defects.defects, items, s.followup.attempts, sc.waiverMinChars)).toEqual(expected);
       }),
       { numRuns: 1000 },
     );
