@@ -4,10 +4,9 @@ Kiroween 2026, category Resurrection. This file is the plan for step 1 of the wo
 
 ## 0. Status and approval gate
 
-- Status: **draft, waiting for your approval.**
-- Nothing below has been built. No `package.json`, `.kiro/`, `LICENSE`, specs, agents, hooks or code exist yet.
-- Implementation starts at step 2 of the work order (section 19) only after you approve this plan or send changes.
-- Open questions that need your answer before or during step 2 are in section 23.
+- Status: **approved; step 2 in progress.**
+- The plan was approved with the decisions listed under section 23. Step 2 (section 19) has started: the workspace scaffold, steering files and the `fagan-mcp` spec exist; the server itself is being built next.
+- Open questions that still need your answer are in section 23.
 
 ## 1. Goal and framing
 
@@ -258,7 +257,7 @@ Server name in `.kiro/settings/mcp.json`: `fagan`. Tool names match `^[a-zA-Z][a
 - **Errors:** `WRONG_PHASE` (for example `phase: "meeting"` before any preparation request, or `phase: "preparation"` after Closed), `ROLE_NOT_ALLOWED`, `UNKNOWN_UNIT`, `INVALID_CURSOR`.
 - **Timestamps:** first `phase: "preparation"` call sets `preparation.start` and moves Overview to Preparation. Every preparation call records a per-role event. `phase: "meeting"` by the moderator sets `meeting.start`.
 
-### 6.4 `record_reading` (proposed ninth tool, see Q1)
+### 6.4 `record_reading` (ninth tool, approved in Q1)
 
 The viewer must show the Reader's real paraphrase, and none of the eight listed tools stores it. The reader is read-only and cannot write files, so it needs its own tool.
 
@@ -746,7 +745,7 @@ Demo data: `scripts/copy-demo.mjs` copies a real `report.json` from `.fagan/insp
 ## 18. Deliverables
 
 - **`LICENSE`**: MIT, copyright line with your name and 2026 (Q6).
-- **`README.md`**: what Fagan's Ghost is (ritual and roles), the Fagan history with citations or "needs citation", install via the power or via MCP config (`.kiro/settings/mcp.json` snippet), quick start, viewer URL placeholder, licence, trust note about config commands, the commit-gate scope note, and disclosures (section 22). The current T3 Code placeholder README is replaced at step 7 and disclosed.
+- **`README.md`**: what Fagan's Ghost is (ritual and roles), the Fagan history with citations or "needs citation", install via the power or via MCP config (`.kiro/settings/mcp.json` snippet), quick start, viewer URL placeholder, licence, trust note about config commands, the commit-gate scope note, and disclosures (section 22). This repo has no earlier README; it is written at step 7.
 - **`KIRO_USAGE.md`**: answers every rules prompt with real file paths: surfaces used (CLI V3 via T3 Code over ACP, IDE for the IDE-only steps) and how they differed; Web and Crew and why they were not used; custom agents and their impact; hooks and the workflows they automated; spec structure and spec versus vibe coding, with one honest vibe-coded comparison (one small piece built without a spec, compared on what went wrong); the steering strategy that mattered most; what MCP enabled; what PBT caught (only real failures found by fast-check or the IDE Correctness run); powers used or built; experiments and what did not work (from `docs/experiments.md`); any Kiro feature left unused and why.
 - **`DEVPOST_STORY.md`**: honest story with no invented numbers. Category Resurrection. Bonus candidates: Best Student Project: Resurrection, and optionally Bonus Blog and Social Blitz, which you write and post yourself.
 - **`VIDEO_SHOTLIST.md`**: under 3 minutes, recorded from the real app on your laptop, no copyrighted music. Order: problem (10 s), open an inspection by hook, Reader paraphrase, inspectors logging defects, commit blocked, rework, follow-up passes, the Inspection Room, the `.kiro` tour. Each shot lists the exact command or click and the real files shown.
@@ -808,13 +807,21 @@ Needs citation (not to be stated as fact in any doc until checked against the pa
 
 ## 22. Disclosures of pre-existing material
 
-- `README.md`: T3 Code placeholder created with the project (an `img` tag pointing at `assets/icon.svg`, the heading "kiro", and the line "Created in [T3 Code](https://t3.codes)."). It is replaced at step 7, and the final README discloses it.
-- `assets/icon.svg`: icon from T3 Code project creation, not made for this entry. Kept or removed per Q7, and disclosed either way.
-- Initial commit `66ed952` contains only those two files.
+- This repo (`~/code/fagans-ghost`) started from PLAN.md only. Its first commit, `001cf80`, contains just this file.
+- The plan was first drafted in an older shared workspace that T3 Code created with a placeholder `README.md` and `assets/icon.svg`. Those files, and that workspace's commits, stay there. They were not copied into this repo and are not part of Fagan's Ghost.
 - Third-party libraries (MCP SDK, zod, Vitest, fast-check, Vite, Playwright, TypeScript and any bundler) are listed in README.md with their licences.
 - No code is shared with the "Read Receipt" entry.
 
 ## 23. Open questions for you
+
+Decisions made after review:
+
+- **Q1 approved.** `record_reading` is added as the ninth MCP tool (section 6.4).
+- **Repo.** Fagan's Ghost lives in its own git repo at `~/code/fagans-ghost`, not in the shared workspace where this plan was drafted.
+- **Power.** The power ships steering, agents and hooks through the `fagan-setup` skill, which copies templates into the target repo (section 14). This is tested in step 5.
+- **History.** Fagan's numeric and historical claims stay marked "needs citation" until checked (section 21).
+- **Old workspace.** The shared workspace and its mislabeled commit are left alone.
+- **Q2 to Q9** are still open. Where a question states a default, that default is used until you answer: Q4 uses a folder under the system temp directory, and Q8 uses TypeScript 7.0.2, which worked with the toolchain (see `.kiro/specs/fagan-mcp/design.md`). Q2, Q3 and Q9 keep the behaviour described in this plan. Q5 uses placeholders. Q6: the `LICENSE` copyright line uses `himanshu748` (the git user name on this machine) and can be changed. Q7 no longer applies to this repo, because `assets/icon.svg` was not copied here (section 22).
 
 - **Q1.** May I add a ninth MCP tool, `record_reading`, so the Reader's paraphrase is stored and the viewer can show it? The alternative is not showing real paraphrases, which would break the planchette screen.
 - **Q2.** Waivers: is "the default agent calls `record_rework` with permission `ask`, so you approve each call" enough to count as the Author's own decision, or do you also want a human-only CLI path (`fagan waive <id> <defect> --reason "<text>"`) and to deny waivers through MCP entirely?

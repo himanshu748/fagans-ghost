@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "fagan-config/1",
+  "sizeLimitLoc": 1500,
+  "suggestThresholdLoc": 200,
+  "maxUnitLines": 80,
+  "build": ["npm", "run", "build"],
+  "test": ["npm", "test"],
+  "commandTimeoutMs": 600000,
+  "exclude": ["package-lock.json"],
+  "checklists": [
+    { "match": ["**/*.test.ts", "**/*.property.test.ts", "**/e2e/**"], "checklist": "tests" },
+    { "match": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.mjs", "**/*.js"], "checklist": "typescript" },
+    { "match": [".kiro/**", "**/*.json", "**/*.yml", "**/*.yaml"], "checklist": "json-config" },
+    { "match": ["**/*.md"], "checklist": "docs" }
+  ],
+  "defaultChecklist": "general",
+  "requireLocationChange": true,
+  "waiverMinChars": 20,
+  "judgmentWords": ["bug", "buggy", "wrong", "incorrect", "broken", "should", "shouldn't", "mistake", "bad", "fix"],
+  "rateWarnings": { "maxPreparationLocPerHour": null, "maxInspectionLocPerHour": null }
+}
