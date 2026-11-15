@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "fagan-checklist/1",
+  "id": "json-config",
+  "title": "JSON, YAML and Kiro configuration checklist",
+  "items": [
+    { "id": "json-config-01", "question": "Does every key and value follow the documented format for this file (for Kiro files, the kiro.dev docs page)?", "typeHint": "interface" },
+    { "id": "json-config-02", "question": "Are paths, globs and command names correct relative to where the tool reads them?", "typeHint": "data" },
+    { "id": "json-config-03", "question": "Do permissions and tool lists grant only what the role or step needs?", "typeHint": "logic" },
+    { "id": "json-config-04", "question": "Are version numbers, schema versions and IDs consistent with the code that reads this file?", "typeHint": "data" },
+    { "id": "json-config-05", "question": "Is the file free of secrets, machine-specific absolute paths and ignored-folder rules for .kiro/?", "typeHint": "other" }
+  ]
+}

@@ -4,60 +4,60 @@ Requirements: #[[file:.kiro/specs/fagan-mcp/requirements.md]]. Design: #[[file:.
 
 Tasks 1 to 9 are the core, store, git and runner work (FEAT-002). Tasks 10 to 14 are the server, CLI, contract test and Kiro registration (FEAT-003). Tick each box when its tests pass.
 
-- [ ] 1. Core schemas and deterministic JSON
-  - [ ] 1.1 zod schemas and types for config, inspection, packet, readings, defects, rework, followup, metrics, events and report in `src/core/schema.ts`
-  - [ ] 1.2 Deterministic serializer in `src/core/json.ts` (schema key order, arrays sorted by ID, 2-space indent, trailing newline)
-  - [ ] 1.3 `FaganError` and error codes in `src/core/errors.ts`
+- [x] 1. Core schemas and deterministic JSON
+  - [x] 1.1 zod schemas and types for config, inspection, packet, readings, defects, rework, followup, metrics, events and report in `src/core/schema.ts`
+  - [x] 1.2 Deterministic serializer in `src/core/json.ts` (schema key order, arrays sorted by ID, 2-space indent, trailing newline)
+  - [x] 1.3 `FaganError` and error codes in `src/core/errors.ts`
   - _Requirements: FM-R12.1, FM-R12.2, FM-R12.3, FM-R13.4, FM-R13.5, FM-R14.5_
 
-- [ ] 2. Diff parser and packet splitter
-  - [ ] 2.1 Unified diff parser for added, deleted, modified, renamed, binary and no-newline-at-EOF cases
-  - [ ] 2.2 Unit splitter capped by `maxUnitLines`, unit numbering, `changed_loc`, skipped files
-  - [ ] 2.3 Checklist selection by first matching glob, else `defaultChecklist` (record the glob matcher choice in design.md)
-  - [ ] 2.4 Unit tests for parser and splitter cases
-  - [ ] 2.5 Property P5: every changed line is in exactly one unit
+- [x] 2. Diff parser and packet splitter
+  - [x] 2.1 Unified diff parser for added, deleted, modified, renamed, binary and no-newline-at-EOF cases
+  - [x] 2.2 Unit splitter capped by `maxUnitLines`, unit numbering, `changed_loc`, skipped files
+  - [x] 2.3 Checklist selection by first matching glob, else `defaultChecklist` (record the glob matcher choice in design.md)
+  - [x] 2.4 Unit tests for parser and splitter cases
+  - [x] 2.5 Property P5: every changed line is in exactly one unit
   - _Requirements: FM-R4.1, FM-R4.2, FM-R4.3, FM-R4.4, FM-R4.5, FM-R4.6, FM-R4.7_
 
-- [ ] 3. Checklists
-  - [ ] 3.1 `checklists/general.json`, `typescript.json`, `json-config.json`, `docs.json`, `tests.json` in `fagan-checklist/1` format, written for this project
+- [x] 3. Checklists
+  - [x] 3.1 `checklists/general.json`, `typescript.json`, `json-config.json`, `docs.json`, `tests.json` in `fagan-checklist/1` format, written for this project
   - _Requirements: FM-R3.8, FM-R4.6, FM-R6.5_
 
-- [ ] 4. Phase state machine and roles
-  - [ ] 4.1 Allowed phases and transitions per tool in `src/core/phase.ts`; allowed roles in `src/core/roles.ts`
-  - [ ] 4.2 Unit tests for every transition and every `WRONG_PHASE` and `ROLE_NOT_ALLOWED` case
-  - [ ] 4.3 Property P6: wrong-phase calls never change the store (`fc.commands`, fake clock)
+- [x] 4. Phase state machine and roles
+  - [x] 4.1 Allowed phases and transitions per tool in `src/core/phase.ts`; allowed roles in `src/core/roles.ts`
+  - [x] 4.2 Unit tests for every transition and every `WRONG_PHASE` and `ROLE_NOT_ALLOWED` case
+  - [x] 4.3 Property P6: wrong-phase calls never change the store (`fc.commands`, fake clock)
   - _Requirements: FM-R1.1, FM-R1.2, FM-R1.3, FM-R1.4, FM-R1.5, FM-R14.4_
 
-- [ ] 5. Readings, defects and rework rules
-  - [ ] 5.1 Judgment-word flagging (whole word, case-insensitive, config order)
-  - [ ] 5.2 Defect location checks and ID allocation
-  - [ ] 5.3 Rework batch validation (waiver reason length, duplicates, unknown defects, latest item wins)
+- [x] 5. Readings, defects and rework rules
+  - [x] 5.1 Judgment-word flagging (whole word, case-insensitive, config order)
+  - [x] 5.2 Defect location checks and ID allocation
+  - [x] 5.3 Rework batch validation (waiver reason length, duplicates, unknown defects, latest item wins)
   - _Requirements: FM-R5.3, FM-R5.4, FM-R5.5, FM-R6.3, FM-R6.4, FM-R6.5, FM-R6.7, FM-R8.3, FM-R8.4, FM-R8.5_
 
-- [ ] 6. Follow-up exit rule
-  - [ ] 6.1 Per-defect status (`verified`, `fixed_unverified`, `waived`, `open`) from rework, checks and blob hashes
-  - [ ] 6.2 Exit rule: pass iff every major is verified or validly waived
-  - [ ] 6.3 Property P3: follow-up passes iff no major is open, unverified or invalidly waived
+- [x] 6. Follow-up exit rule
+  - [x] 6.1 Per-defect status (`verified`, `fixed_unverified`, `waived`, `open`) from rework, checks and blob hashes
+  - [x] 6.2 Exit rule: pass iff every major is verified or validly waived
+  - [x] 6.3 Property P3: follow-up passes iff no major is open, unverified or invalidly waived
   - _Requirements: FM-R9.3, FM-R9.4, FM-R9.5, FM-R9.6_
 
-- [ ] 7. Metrics
-  - [ ] 7.1 Durations, rates, per-KLOC values, null reasons and rate warnings
-  - [ ] 7.2 Property P1: metrics are finite or null with a reason
-  - [ ] 7.3 Property P2: rates never increase as duration grows
+- [x] 7. Metrics
+  - [x] 7.1 Durations, rates, per-KLOC values, null reasons and rate warnings
+  - [x] 7.2 Property P1: metrics are finite or null with a reason
+  - [x] 7.3 Property P2: rates never increase as duration grows
   - _Requirements: FM-R10.1, FM-R10.2, FM-R10.3, FM-R10.4, FM-R10.5, FM-R10.6, FM-R10.7, FM-R10.8_
 
-- [ ] 8. Report
-  - [ ] 8.1 Build and parse `report.json` (rejects other schema versions)
-  - [ ] 8.2 Render 132-column `report.txt` green-bar listing
-  - [ ] 8.3 Property P4: report round-trips and is byte-stable
+- [x] 8. Report
+  - [x] 8.1 Build and parse `report.json` (rejects other schema versions)
+  - [x] 8.2 Render 132-column `report.txt` green-bar listing
+  - [x] 8.3 Property P4: report round-trips and is byte-stable
   - _Requirements: FM-R11.3, FM-R11.4, FM-R11.5, FM-R11.7_
 
-- [ ] 9. Store, git adapter and runner
-  - [ ] 9.1 Store: atomic writes, `.fagan/.lock`, sequential IDs, `events.jsonl` append, `STORE_CORRUPT`, ID validation before path joins
-  - [ ] 9.2 Git adapter with `execFile` argv only: verify revisions, worktree and revision diffs, untracked files via `--no-index`, blob hashes, `NOT_A_GIT_REPO`
-  - [ ] 9.3 Runner for build and test argv with timeout and `COMMAND_TIMEOUT`
-  - [ ] 9.4 Unit tests against temp repos under `os.tmpdir()`
-  - [ ] 9.5 Commit-gate matcher in `src/core/gate.ts` and property P7
+- [x] 9. Store, git adapter and runner
+  - [x] 9.1 Store: atomic writes, `.fagan/.lock`, sequential IDs, `events.jsonl` append, `STORE_CORRUPT`, ID validation before path joins
+  - [x] 9.2 Git adapter with `execFile` argv only: verify revisions, worktree and revision diffs, untracked files via `--no-index`, blob hashes, `NOT_A_GIT_REPO`
+  - [x] 9.3 Runner for build and test argv with timeout and `COMMAND_TIMEOUT`
+  - [x] 9.4 Unit tests against temp repos under `os.tmpdir()`
+  - [x] 9.5 Commit-gate matcher in `src/core/gate.ts` and property P7
   - _Requirements: FM-R2.2, FM-R2.3, FM-R2.6, FM-R2.8, FM-R4.8, FM-R12.4, FM-R13.1, FM-R13.2, FM-R13.3, FM-R13.4, FM-R14.1, FM-R14.3, FM-R14.7, FM-R16.1, FM-R16.2_
 
 - [ ] 10. Tool services

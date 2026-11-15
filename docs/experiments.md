@@ -35,4 +35,22 @@ Results of the experiments listed in PLAN.md section 2.4. Each row records what 
 
 ## PBT findings
 
-None so far. Property tests are written in FEAT-002 of step 2; only real failures found by fast-check will be recorded here, with the counterexample and the fix.
+Only real failures found by fast-check are recorded here, with the counterexample and the fix. The three below were found by property P4 (`FM-R11.3 FM-R11.4 report round-trips and is byte-stable`, `packages/fagan-mcp/test/report.property.test.ts`) during FEAT-002. P4-1 and P4-2 were reproduced again before the commit by removing their fix and running the property; P4-3 showed up in a normal test run during that check.
+
+### P4-1: event data with a `__proto__` key was silently dropped
+
+- Counterexample (shrunk; `seed: -608977263`): one event whose `data` is `{ ["__proto__"]: [] }`, an own key named `__proto__`, which `JSON.parse` produces from `{"__proto__":[]}`.
+- Failure: `parseReport(exportReport(model))` returned `data: {}`. zod's `z.record` parsing drops `__proto__` keys, so data was lost on import.
+- Fix: `EventDataSchema` in `src/core/schema.ts` rejects any own `__proto__` key at any depth (`hasProtoKey`) before record parsing, so the export fails with a validation error instead of losing data. The serializer in `src/core/json.ts` copies keys with `Object.defineProperty` so the key is not swallowed on the write side either. Regression test: `FM-R11.3 event data with a __proto__ key is rejected instead of silently dropped`.
+
+### P4-2: a metric of negative zero came back as 0
+
+- Counterexample (`seed: 2054659411`, failed after 23 runs): `metrics.durationsMs.preparation` is `-0`.
+- Failure: JSON has no negative zero, so `JSON.stringify(-0)` writes `0` and the parsed report has `preparation: 0`, which does not deep-equal `-0`.
+- Fix: the metric number schema in `src/core/schema.ts` rejects `-0`, and `computeMetrics` never produces it. Regression test: `FM-R11.3 a metric of negative zero is rejected instead of coming back as 0`.
+
+### P4-3: negative zero inside event data came back as 0
+
+- Counterexample (`seed: 161279075`, intermittent, about one full-suite run in five): an event whose free-form `data` from `fc.jsonValue()` holds `{ "constructor": -0 }`.
+- Failure: the same JSON limitation as P4-2, in event data instead of metrics. The parsed report had `"constructor": 0`. The P4-2 fix only covered metric fields.
+- Fix: `EventDataSchema` in `src/core/schema.ts` also rejects `-0` at any depth (`hasNegativeZero`). The ops only put IDs, strings and non-negative counts into event data, so no real call is affected. Regression test: `FM-R11.3 event data containing negative zero is rejected instead of coming back as 0`.

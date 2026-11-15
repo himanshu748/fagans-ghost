@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "fagan-checklist/1",
+  "id": "typescript",
+  "title": "TypeScript and JavaScript checklist",
+  "items": [
+    { "id": "typescript-01", "question": "Are loop bounds, comparisons and off-by-one cases right for empty, single and full inputs?", "typeHint": "logic" },
+    { "id": "typescript-02", "question": "Is every possibly undefined or null value checked before use, without non-null assertions that hide a real gap?", "typeHint": "logic" },
+    { "id": "typescript-03", "question": "Are promises awaited or returned, and are rejected promises handled?", "typeHint": "logic" },
+    { "id": "typescript-04", "question": "Do exported function signatures, types and error shapes match what callers and the spec expect?", "typeHint": "interface" },
+    { "id": "typescript-05", "question": "Is input from outside the process (tool arguments, files, environment, stdin) validated before use?", "typeHint": "interface" },
+    { "id": "typescript-06", "question": "Are child processes started with argument arrays and never through a shell string?", "typeHint": "interface" },
+    { "id": "typescript-07", "question": "Are numbers safe from division by zero, NaN and Infinity, and are units (ms, LOC) consistent?", "typeHint": "data" },
+    { "id": "typescript-08", "question": "Is data written in a stable order and format so the output is deterministic?", "typeHint": "data" },
+    { "id": "typescript-09", "question": "Do names and comments describe what the code actually does?", "typeHint": "documentation" }
+  ]
+}

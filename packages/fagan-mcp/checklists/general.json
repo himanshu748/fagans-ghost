@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "fagan-checklist/1",
+  "id": "general",
+  "title": "General change checklist",
+  "items": [
+    { "id": "general-01", "question": "Does the change do what its title and the Author's overview say, and nothing else?", "typeHint": "logic" },
+    { "id": "general-02", "question": "Is every changed value, path or name spelled the same way everywhere it is used?", "typeHint": "data" },
+    { "id": "general-03", "question": "Are error and empty cases handled, not only the common path?", "typeHint": "logic" },
+    { "id": "general-04", "question": "Does the change keep secrets, tokens and personal data out of the file?", "typeHint": "data" },
+    { "id": "general-05", "question": "Do comments and nearby docs still describe what the code now does?", "typeHint": "documentation" }
+  ]
+}

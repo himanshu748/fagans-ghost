@@ -27,6 +27,8 @@ Versions installed on 2026-11-15 and the docs checked before choosing them:
 
 Glob matching for checklist selection (FM-R4.6) and `exclude`: Node's `path.matchesGlob` was added in v22.5.0 and marked stable only in v22.20.0 ([path docs](https://nodejs.org/docs/latest-v22.x/api/path.html)). The local Node is 22.14.0, where it is still experimental. FEAT-002 picks either `path.posix.matchesGlob` (if it runs without an experimental warning on 22.14.0) or a small documented glob library such as picomatch after reading its docs, and records the choice here.
 
+Choice (FEAT-002): picomatch 4.0.7, imported as `picomatch/posix.js` with option `dot: true`. On Node 22.14.0, `path.matchesGlob` prints `ExperimentalWarning: glob is an experimental feature` to stderr, which would leak into hook output. The [picomatch README](https://github.com/micromatch/picomatch#readme) documents `picomatch/posix` as the same API without OS detection (always `/` separators, matching our repo-relative paths), and `dot: true` so globs like `**/*.json` also match dotfiles such as `.kiro/settings/mcp.json`.
+
 ## Module layout
 
 ```text
