@@ -143,6 +143,10 @@ describe("fagan-mcp over stdio", () => {
       ["U002", "src/calc.ts", "typescript"],
     ]);
     expect(Object.keys(prep["checklists"] as object).sort()).toEqual(["docs", "typescript"]);
+    // FM-R4.7: unit lines carry the no-newline flag over stdio (every fixture file ends in a newline).
+    const lines = (prep["units"] as Array<{ lines: Array<Record<string, unknown>> }>).flatMap((u) => u.lines);
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.every((l) => l["no_newline_at_eof"] === false)).toBe(true);
     expect((await ok("get_packet", { inspection_id: id, role: "inspector-interfaces", phase: "preparation", limit: 1 }))["next_cursor"]).toBe(
       "insp-0001:U002",
     );

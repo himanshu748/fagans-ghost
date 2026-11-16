@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isoNow, type Clock } from "../clock.js";
+import { parseUnifiedDiff, type DiffFile } from "../core/diff.js";
 import { FaganError } from "../core/errors.js";
 import { openMajorIds } from "../core/followup.js";
 import { toDeterministicJson } from "../core/json.js";
@@ -25,7 +26,7 @@ import {
   type RecordReadingResult,
   type RecordReworkResult,
 } from "../core/ops.js";
-import { countChangedLoc, buildPacket } from "../core/packet.js";
+import { countChangedLoc, buildPacket, reworkDriftLoc } from "../core/packet.js";
 import { assertPhase, isTerminal } from "../core/phase.js";
 import { buildReport, renderReportTxt, serializeReport } from "../core/report.js";
 import { assertRole } from "../core/roles.js";
@@ -458,6 +459,14 @@ export async function abandonService(
 
 // ---------------------------------------------------------------- hooks
 
+/** A file content a Closed inspection accepted, with what the inspection read for it. */
+interface AcceptedFile {
+  /** `blobBefore` of the packet file: the base the inspected diff starts from. */
+  blobBefore: string | null;
+  /** The file's diff in the inspection's `diff.patch`. */
+  inspected: DiffFile | undefined;
+}
+
 /**
  * The `hook suggest` check (FM-R15.2). Returns the suggestion text, or null
  * when nothing should be printed. Errors propagate; the CLI swallows them.
@@ -466,36 +475,59 @@ export async function suggestion(cwd: string): Promise<string | null> {
   const root = await resolveRoot(cwd);
   const config = await loadConfig(root);
   const closedDiffs: string[] = [];
-  /** Content each Closed inspection accepted: path -> blob hashes at its passing follow-up. */
-  const accepted = new Map<string, Set<string | null>>();
+  /** Content each Closed inspection accepted: path -> blob hash at its passing follow-up -> what it read. */
+  const accepted = new Map<string, Map<string | null, AcceptedFile[]>>();
   for (const id of await listInspectionIds(root)) {
     const state = await loadState(root, id);
     if (!isTerminal(state.inspection.phase)) return null;
     if (state.inspection.phase !== "Closed") continue;
-    closedDiffs.push(await readDiff(root, id));
+    const diffText = await readDiff(root, id);
+    closedDiffs.push(diffText);
+    const inspectedFiles = parseUnifiedDiff(diffText);
     const passing = state.followup.attempts.find((a) => a.passed);
     for (const b of passing?.blobs ?? []) {
-      const set = accepted.get(b.path) ?? new Set<string | null>();
-      set.add(b.blob);
-      accepted.set(b.path, set);
+      const byBlob = accepted.get(b.path) ?? new Map<string | null, AcceptedFile[]>();
+      const list = byBlob.get(b.blob) ?? [];
+      list.push({
+        blobBefore: state.packet.files.find((f) => f.path === b.path)?.blobBefore ?? null,
+        inspected: inspectedFiles.find((f) => f.path === b.path),
+      });
+      byBlob.set(b.blob, list);
+      accepted.set(b.path, byBlob);
     }
   }
   const diff = await collectDiff(root, { base: "HEAD", head: WORKTREE, includeUntracked: true, excludePaths: STORE_EXCLUDE_PATHS });
   if (closedDiffs.includes(diff.diffText)) return null;
   // A file is covered when its current content is what a Closed inspection
-  // accepted, including the Author's rework (review v1 issue 5).
+  // accepted, including the Author's rework (review v1 issue 5). The lines
+  // that changed after the inspection read the file (rework drift) still
+  // count, so only small rework stays under the threshold (review v2 issue 2).
   const candidates = diff.files.filter((f) => accepted.has(f.path));
   const blobs = await currentBlobs(root, candidates.map((f) => f.path));
-  const uncovered = diff.files.filter((f) => {
-    const set = accepted.get(f.path);
-    return set === undefined || !blobs.has(f.path) || !set.has(blobs.get(f.path) ?? null);
-  });
-  const loc = countChangedLoc(uncovered, config.exclude);
+  const uncovered: DiffFile[] = [];
+  let covered = 0;
+  let drift = 0;
+  for (const f of diff.files) {
+    const blob = blobs.has(f.path) ? (blobs.get(f.path) ?? null) : undefined;
+    const base = diff.blobs.get(f.path)?.blobBefore ?? null;
+    // Drift is only measurable against the same base; otherwise the file is uncovered.
+    const drifts = (blob === undefined ? [] : (accepted.get(f.path)?.get(blob) ?? []))
+      .filter((a) => a.inspected !== undefined && a.blobBefore === base)
+      .map((a) => reworkDriftLoc(a.inspected as DiffFile, f, config.exclude));
+    if (drifts.length === 0) {
+      uncovered.push(f);
+      continue;
+    }
+    covered++;
+    drift += Math.min(...drifts);
+  }
+  const loc = countChangedLoc(uncovered, config.exclude) + drift;
   if (loc <= config.suggestThresholdLoc) return null;
-  const covered = diff.files.length - uncovered.length;
   const head =
     `fagan: ${loc} changed lines against HEAD (threshold ${config.suggestThresholdLoc}) and no inspection covers them` +
-    (covered > 0 ? ` (${covered} file(s) already covered by a Closed inspection are not counted). ` : ". ");
+    (covered > 0
+      ? ` (${covered} file(s) already covered by a Closed inspection add only the ${drift} line(s) changed since the inspection read them). `
+      : ". ");
   if (loc > config.sizeLimitLoc) {
     return (
       head +
@@ -513,19 +545,24 @@ export interface GateBlock {
   defect_ids: string[];
 }
 
+/** The repo root of `cwd` for the commit gate, or null when it is not inside a git repo (FM-R16.4). */
+export async function gateRoot(cwd: string): Promise<string | null> {
+  try {
+    return await resolveRoot(cwd);
+  } catch (err) {
+    if (err instanceof FaganError && err.code === "NOT_A_GIT_REPO") return null;
+    throw err;
+  }
+}
+
 /**
  * Inspections in a non-terminal phase with open majors (FM-R16.3, FM-R16.4).
  * An empty list allows the commit. A missing repo or store allows; an
  * unreadable store throws, and the CLI blocks on that (FM-R16.6).
  */
 export async function gateBlocks(cwd: string): Promise<GateBlock[]> {
-  let root: string;
-  try {
-    root = await resolveRoot(cwd);
-  } catch (err) {
-    if (err instanceof FaganError && err.code === "NOT_A_GIT_REPO") return [];
-    throw err;
-  }
+  const root = await gateRoot(cwd);
+  if (root === null) return [];
   const ids = await listInspectionIds(root);
   if (ids.length === 0) return [];
   const config = await loadConfig(root);

@@ -80,4 +80,40 @@ describe("FM-R16.1 FM-R16.2 commit-gate matcher", () => {
     expect(gitCommitTargets("sudo -D /w git commit")).toEqual([["/w"]]);
     expect(gitCommitTargets("git -C x status")).toEqual([]);
   });
+
+  // Review v2 issue 1: words the shell expands must not be resolved as written.
+  it("FM-R16.2 reports null for directory words the shell would expand", () => {
+    const home = "/home/u";
+    expect(gitCommitTargets('git -C "$PWD" commit', home)).toEqual([[null]]);
+    expect(gitCommitTargets("git -C $HOME/x commit", home)).toEqual([[null]]);
+    expect(gitCommitTargets("git -C ${D:-.} commit", home)).toEqual([[null]]);
+    expect(gitCommitTargets('git -C "$(git rev-parse --show-toplevel)/src" commit', home)).toEqual([[null]]);
+    expect(gitCommitTargets("git -C `pwd` commit", home)).toEqual([[null]]);
+    expect(gitCommitTargets("git -C sub* commit", home)).toEqual([[null]]);
+    expect(gitCommitTargets("git -C {a,b} commit", home)).toEqual([[null]]);
+    expect(gitCommitTargets("env -C $PWD git commit", home)).toEqual([[null]]);
+    expect(gitCommitTargets("sudo --chdir=$D git -C sub commit", home)).toEqual([[null, "sub"]]);
+    expect(gitCommitTargets("git -C ~bob/x commit", home)).toEqual([[null]]);
+    expect(gitCommitTargets("git -C ~+ commit", home)).toEqual([[null]]);
+    expect(gitCommitTargets("git -C ~/x commit")).toEqual([[null]]);
+  });
+
+  it("FM-R16.2 resolves quoted, escaped and tilde directory words as the shell would", () => {
+    const home = "/home/u";
+    expect(gitCommitTargets("git -C ~ commit", home)).toEqual([["/home/u"]]);
+    expect(gitCommitTargets("git -C ~/code/r commit", home)).toEqual([["/home/u/code/r"]]);
+    expect(gitCommitTargets('git -C "~/x" commit', home)).toEqual([["~/x"]]);
+    expect(gitCommitTargets("git -C \\~/x commit", home)).toEqual([["~/x"]]);
+    expect(gitCommitTargets("git -C '$PWD' commit", home)).toEqual([["$PWD"]]);
+    expect(gitCommitTargets('git -C "a\\$b" commit', home)).toEqual([["a$b"]]);
+    expect(gitCommitTargets("git -C a\\*b commit", home)).toEqual([["a*b"]]);
+    expect(gitCommitTargets("git -C 'sub*' commit", home)).toEqual([["sub*"]]);
+    // A quoted character before the first `/` turns tilde expansion off (POSIX 2.6.1).
+    expect(gitCommitTargets('git -C ~"/x" commit', home)).toEqual([["~/x"]]);
+    expect(gitCommitTargets("git -C ~\\/x commit", home)).toEqual([["~/x"]]);
+    expect(gitCommitTargets("git -C ~'' commit", home)).toEqual([["~"]]);
+    expect(gitCommitTargets('git -C ~/"a b" commit', home)).toEqual([["/home/u/a b"]]);
+    // No tilde expansion after `=` in an option word: it is not a variable assignment.
+    expect(gitCommitTargets("env --chdir=~/x git commit", home)).toEqual([["~/x"]]);
+  });
 });

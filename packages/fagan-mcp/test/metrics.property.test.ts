@@ -110,6 +110,67 @@ describe("metrics properties", () => {
     );
   });
 
+  // Review v2 issue 4: the time-in-phase walk must account for every
+  // millisecond between the meeting's end and the end of the inspection.
+  it("FM-R10.1 FM-R10.3 rework plus follow-up equals the time from meetingEnd to closedAt or abandonedAt", () => {
+    const t0 = Date.parse("2026-01-01T00:00:00.000Z");
+    const at = (ms: number): string => new Date(t0 + ms).toISOString();
+    const gapArb = fc.oneof(fc.constant(0), fc.integer({ min: 0, max: 30 * 24 * 3_600_000 }));
+    fc.assert(
+      fc.property(
+        fc.boolean(),
+        gapArb,
+        fc.array(gapArb, { maxLength: 6 }),
+        fc.constantFrom("closed" as const, "abandoned" as const),
+        gapArb,
+        (hadDefects, meetingOffset, gaps, ending, tail) => {
+          // Attempts in time order: failures, then one pass `tail` later when the
+          // inspection closes; an abandoned inspection ends `tail` after the last failure.
+          let now = meetingOffset;
+          const attempts = gaps.map((g) => {
+            now += g;
+            return { at: at(now), passed: false };
+          });
+          const end = now + tail;
+          if (ending === "closed") attempts.push({ at: at(end), passed: true });
+          const m = computeMetrics({
+            timestamps: {
+              planningStart: at(0),
+              planningEnd: at(0),
+              overviewStart: at(0),
+              preparationStart: at(0),
+              meetingStart: at(0),
+              meetingEnd: at(meetingOffset),
+              reworkStart: null,
+              followupStart: null,
+              closedAt: ending === "closed" ? at(end) : null,
+              abandonedAt: ending === "abandoned" ? at(end) : null,
+            },
+            changedLoc: 10,
+            defects: hadDefects ? [defect(0, "major")] : [],
+            attempts,
+            rateWarnings: { maxPreparationLocPerHour: null, maxInspectionLocPerHour: null },
+            computedAt: at(end),
+          });
+          const { rework, followup } = m.durationsMs;
+          expect((rework ?? 0) + (followup ?? 0)).toBe(end - meetingOffset);
+          for (const v of [rework, followup]) if (v !== null) expect(v).toBeGreaterThanOrEqual(0);
+          // A null means the phase was never entered: Rework without defects or a failed
+          // attempt, FollowUp after a meeting with defects and no attempt.
+          const enteredRework = hadDefects || attempts.some((a) => !a.passed);
+          const enteredFollowup = !hadDefects || attempts.length > 0;
+          expect(rework === null).toBe(!enteredRework);
+          expect(followup === null).toBe(!enteredFollowup);
+          for (const field of ["durationsMs.rework", "durationsMs.followup"] as const) {
+            const reasons = m.nullReasons.filter((r) => r.field === field);
+            expect(reasons).toEqual(valueOf(m, field) === null ? [{ field, reason: "phase_not_reached" }] : []);
+          }
+        },
+      ),
+      { numRuns: 500 },
+    );
+  });
+
   it("FM-R10.6 rates never increase as duration grows", () => {
     const t0 = Date.parse("2026-01-01T00:00:00.000Z");
     const at = (ms: number): string => new Date(t0 + ms).toISOString();

@@ -160,6 +160,33 @@ export function countChangedLoc(files: readonly DiffFile[], exclude: readonly st
   return n;
 }
 
+/**
+ * Changed lines between two diffs of one file against the same base, such as
+ * the diff an inspection read and the diff after rework (FM-R15.2). Added
+ * lines and deleted lines are compared as multisets of text and counted in
+ * both directions, so equal diffs give 0, a rewritten line gives 2 (one
+ * deleted, one added, as `countChangedLoc` counts it) and N new lines give N.
+ * Moved lines count 0. Binary and excluded files count 0, as in FM-R4.4.
+ */
+export function reworkDriftLoc(inspected: DiffFile, current: DiffFile, exclude: readonly string[]): number {
+  if (inspected.binary || current.binary || matchesAny(current.path, exclude)) return 0;
+  const balance = new Map<string, number>();
+  const tally = (file: DiffFile, sign: number): void => {
+    for (const hunk of file.hunks) {
+      for (const line of hunk.lines) {
+        if (!isChanged(line)) continue;
+        const key = `${line.kind}\n${line.noNewlineAtEof ? 1 : 0}\n${line.text}`;
+        balance.set(key, (balance.get(key) ?? 0) + sign);
+      }
+    }
+  };
+  tally(inspected, 1);
+  tally(current, -1);
+  let n = 0;
+  for (const v of balance.values()) n += Math.abs(v);
+  return n;
+}
+
 /** Line numbers a unit covers on one side, as an inclusive range, or null if it has none. */
 export function unitSideRange(unit: Unit, side: "new" | "old"): { min: number; max: number } | null {
   let min = Infinity;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseUnifiedDiff, type DiffHunk } from "../src/core/diff.js";
-import { buildPacket, comparePaths, countChangedLoc, selectChecklist, splitHunk } from "../src/core/packet.js";
+import { parseUnifiedDiff, type DiffFile, type DiffHunk } from "../src/core/diff.js";
+import { buildPacket, comparePaths, countChangedLoc, reworkDriftLoc, selectChecklist, splitHunk } from "../src/core/packet.js";
 import { loadChecklists, assertConfigChecklists } from "../src/store/checklists.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -124,6 +124,29 @@ describe("FM-R4.1 FM-R4.2 FM-R4.3 packet splitting", () => {
     );
     expect(packet.files.find((f) => f.path === "src/a.ts")).toMatchObject({ blobBefore: "b1", blobAfter: "b2" });
     expect(packet.files.find((f) => f.path === "docs/x.md")).toMatchObject({ blobBefore: null, blobAfter: null });
+  });
+
+  // Review v2 issue 2: rework drift counts toward the hook suggest threshold.
+  it("FM-R15.2 rework drift counts the changed lines that differ between two diffs of a file", () => {
+    const fileDiff = (path: string, body: string[]): DiffFile => {
+      const [file] = parseUnifiedDiff([`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...body, ""].join("\n"));
+      return file as DiffFile;
+    };
+    const inspected = fileDiff("src/a.ts", ["@@ -1,2 +1,2 @@", " keep", "-old", "+new"]);
+    expect(reworkDriftLoc(inspected, inspected, [])).toBe(0);
+    // The fix rewrites the added line: one line gone, one line new.
+    const fixed = fileDiff("src/a.ts", ["@@ -1,2 +1,2 @@", " keep", "-old", "+newer"]);
+    expect(reworkDriftLoc(inspected, fixed, [])).toBe(2);
+    // Three lines added during rework count 3, in either order of arguments.
+    const grown = fileDiff("src/a.ts", ["@@ -1,2 +1,5 @@", " keep", "-old", "+new", "+a", "+b", "+c"]);
+    expect(reworkDriftLoc(inspected, grown, [])).toBe(3);
+    expect(reworkDriftLoc(grown, inspected, [])).toBe(3);
+    // A line that only gains its final newline is a different line.
+    const eof = fileDiff("src/a.ts", ["@@ -1,2 +1,2 @@", " keep", "-old", "+new", "\\ No newline at end of file"]);
+    expect(reworkDriftLoc(inspected, eof, [])).toBe(2);
+    // Excluded files count 0, as in FM-R4.4.
+    const lock = fileDiff("package-lock.json", ["@@ -1 +1 @@", "-{}", "+{ }"]);
+    expect(reworkDriftLoc(fileDiff("package-lock.json", ["@@ -1 +1 @@", "-{}", "+[]"]), lock, testConfig.exclude)).toBe(0);
   });
 });
 

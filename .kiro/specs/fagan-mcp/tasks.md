@@ -97,3 +97,10 @@ Tasks 1 to 9 are the core, store, git and runner work (FEAT-002). Tasks 10 to 14
   - [ ] 16.1 Run experiment E2 and record the real `PreToolUse` shell tool ID and command field in `docs/experiments.md`; change `COMMAND_FIELDS` in `src/cli.ts` if the field differs
   - [ ] 16.2 Acceptance: with `.kiro/hooks/commit-gate.json` wired and an inspection holding an open major, the gate blocked a real `git commit` attempted by the agent in a live Kiro session. Recording the payload field alone does not complete this task
   - _Requirements: FM-R16.3, FM-R16.5_
+
+- [x] 17. Review v2 fixes (review of the v1 fix pass, 4 issues)
+  - [x] 17.1 Gate: `-C`/`--chdir` words the shell would expand, and directories outside a git repo, fall back to the payload `cwd` repo; `~` and `~/` expand to the home directory
+  - [x] 17.2 `hook suggest`: covered files add their rework drift (`reworkDriftLoc`) to the count
+  - [x] 17.3 design.md "Commit gate scope" points at task 16
+  - [x] 17.4 Property P8: rework plus follow-up equals the time from `meetingEnd` to `closedAt` or `abandonedAt`
+  - _Requirements: FM-R10.1, FM-R10.3, FM-R15.2, FM-R16.2_

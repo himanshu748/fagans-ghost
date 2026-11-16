@@ -3,8 +3,8 @@
 // in-process through the same services the MCP server uses.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { join, relative } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { systemClock } from "../src/clock.js";
 import { readEvents } from "../src/store/store.js";
@@ -19,7 +19,7 @@ import {
   recordReworkService,
   type ServiceContext,
 } from "../src/service/service.js";
-import { CALC_V3, CLI, assertBuilt, fixtureConfig, fixtureRepo } from "./fixture.js";
+import { CALC_V3, CLI, NOTES, assertBuilt, fixtureConfig, fixtureRepo } from "./fixture.js";
 
 interface Run {
   status: number | null;
@@ -116,7 +116,36 @@ describe("fagan hook gate", () => {
     expect(fagan(clean, ["hook", "gate"], payload(`git -C ${JSON.stringify(root)} commit -m x`)).status).toBe(2);
     expect(fagan(clean, ["hook", "gate"], payload(`sudo -D ${JSON.stringify(root)} git commit -m x`)).status).toBe(2);
     expect(fagan(root, ["hook", "gate"], payload(`git -C ${JSON.stringify(clean)} commit -m x`)).status).toBe(0);
+    // A missing directory falls back to the payload cwd repo, which is clean here (review v2 issue 1).
     expect(fagan(clean, ["hook", "gate"], payload("git -C does-not-exist commit -m x")).status).toBe(0);
+  });
+
+  it("FM-R16.2 FM-R16.3 falls back to the payload cwd for -C words the shell would expand or that are not a repo (review v2 issue 1)", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    const fromHome = relative(homedir(), root);
+    for (const cmd of [
+      'git -C "$PWD" commit -m x',
+      "git -C $PWD commit -m x",
+      `git -C ~/${fromHome} commit -m x`,
+      'git -C "$(git rev-parse --show-toplevel)/src" commit -m x',
+      "git -C `pwd` commit -m x",
+      "env -C $PWD git commit -m x",
+      "sudo --chdir=${PWD} git commit -m x",
+      "git -C does-not-exist commit -m x",
+      "git -C '$PWD' commit -m x",
+    ]) {
+      const r = fagan(root, ["hook", "gate"], payload(cmd));
+      expect(r.status, cmd).toBe(2);
+      expect(r.stdout, cmd).toContain("insp-0001: D001");
+    }
+    // A literal or tilde path still names the other repo, whatever the payload cwd holds.
+    const clean = repo();
+    expect(fagan(clean, ["hook", "gate"], payload(`git -C ~/${fromHome} commit -m x`)).status).toBe(2);
+    expect(fagan(clean, ["hook", "gate"], payload('git -C "$PWD" commit -m x')).status).toBe(0);
+    // An absolute path after an unknown word is known again; a relative one is not.
+    expect(fagan(clean, ["hook", "gate"], payload(`env -C $PWD git -C ${JSON.stringify(root)} commit -m x`)).status).toBe(2);
+    expect(fagan(root, ["hook", "gate"], payload(`env -C $PWD git -C ${JSON.stringify(relative(root, clean))} commit -m x`)).status).toBe(2);
   });
 
   it("FM-R9.3 FM-R16.3 a fixed major blocks until follow-up verifies it (review v1 issue 3)", async () => {
@@ -211,7 +240,8 @@ describe("fagan hook suggest", () => {
   });
 
   it("FM-R15.2 stays quiet after a Closed inspection whose rework changed the diff (review v1 issue 5)", async () => {
-    const root = repo({ ...fixtureConfig, suggestThresholdLoc: 0 });
+    // Threshold 2: the fix below rewrites one line, which is 2 changed lines of rework drift.
+    const root = repo({ ...fixtureConfig, suggestThresholdLoc: 2 });
     await toReworkWithMajor(root);
     const ctx = ctxFor(root);
     writeFileSync(join(root, "src", "calc.ts"), CALC_V3);
@@ -223,6 +253,30 @@ describe("fagan hook suggest", () => {
     // Editing an inspected file after the close makes it uncovered again.
     writeFileSync(join(root, "src", "calc.ts"), `${CALC_V3}// later\n`);
     expect(fagan(root, ["hook", "suggest"], "{}").stdout).toMatch(/1 file\(s\) already covered/);
+  });
+
+  it("FM-R15.2 counts code added during rework against the threshold (review v2 issue 2)", async () => {
+    const extra = Array.from({ length: 20 }, (_, i) => `export const k${i} = ${i};`).join("\n");
+    const root = repo({ ...fixtureConfig, suggestThresholdLoc: 10 });
+    await toReworkWithMajor(root);
+    const ctx = ctxFor(root);
+    // The fix (2 changed lines) plus 20 new lines no Reader paraphrased.
+    writeFileSync(join(root, "src", "calc.ts"), `${CALC_V3}${extra}\n`);
+    await recordReworkService(ctx, { inspection_id: ID, role: "author", items: [{ defect_id: "D001", resolution: "fixed", note: "Removed the + 1." }] });
+    expect((await followUpService(ctx, { inspection_id: ID, caller: { kind: "tool", role: "moderator" }, run_checks: true })).phase).toBe("Closed");
+    const r = fagan(root, ["hook", "suggest"], "{}");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/^fagan: 22 changed lines against HEAD \(threshold 10\)/);
+    expect(r.stdout).toContain("2 file(s) already covered by a Closed inspection add only the 22 line(s) changed since the inspection read them");
+
+    // A no-defect inspection waiting in FollowUp: edits made before follow_up count too.
+    const waiting = repo({ ...fixtureConfig, suggestThresholdLoc: 10 });
+    await toMeeting(waiting);
+    await closeMeetingService(ctxFor(waiting), { inspection_id: ID, role: "moderator", notes: null });
+    writeFileSync(join(waiting, "docs", "notes.md"), `${NOTES}${extra}\n`);
+    const fu = await followUpService(ctxFor(waiting), { inspection_id: ID, caller: { kind: "tool", role: "moderator" }, run_checks: true });
+    expect(fu.phase).toBe("Closed");
+    expect(fagan(waiting, ["hook", "suggest"], "{}").stdout).toMatch(/^fagan: 20 changed lines against HEAD \(threshold 10\)/);
   });
 
   it("FM-R15.2 says when the diff is above sizeLimitLoc (review v1 issue 5)", () => {

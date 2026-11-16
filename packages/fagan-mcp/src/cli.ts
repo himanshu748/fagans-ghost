@@ -2,7 +2,8 @@
 // `fagan` CLI: the MCP server entry and the commands hooks run, because hooks
 // cannot call MCP tools (design.md "CLI", FM-R15, FM-R16). Arguments are
 // parsed with node:util parseArgs.
-import { resolve as resolvePath } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, resolve as resolvePath } from "node:path";
 import { parseArgs } from "node:util";
 import { systemClock } from "./clock.js";
 import { isFaganError } from "./core/errors.js";
@@ -13,6 +14,7 @@ import {
   exportReportService,
   followUpService,
   gateBlocks,
+  gateRoot,
   latestFollowUpCandidate,
   suggestion,
   type GateBlock,
@@ -101,6 +103,36 @@ async function hookSuggest(): Promise<number> {
   return 0;
 }
 
+/** `os.homedir()` for tilde expansion, or null when it cannot be found (then `~` words fall back, FM-R16.2). */
+function homeDir(): string | null {
+  try {
+    const h = homedir();
+    return h.length > 0 ? h : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The repo one commit targets (FM-R16.2): the payload cwd moved, in order, by
+ * its `-C`/`--chdir` values. A null value is a directory the shell computes
+ * and the matcher does not evaluate; later relative values stay unknown and
+ * an absolute one is known again. The payload cwd's repo is used instead when
+ * the directory stays unknown, or when the moved directory is not inside a
+ * git repo, so an unexpanded `$PWD` or a typo cannot skip the check (review
+ * v2 issue 1). Null when neither is a repo.
+ */
+async function commitRoot(base: string, chain: ReadonlyArray<string | null>): Promise<string | null> {
+  let dir: string | null = base;
+  for (const p of chain) {
+    if (p === null) dir = null;
+    else if (dir !== null) dir = resolvePath(dir, p);
+    else if (isAbsolute(p)) dir = resolvePath(p);
+  }
+  if (dir === null) return gateRoot(base);
+  return (await gateRoot(dir)) ?? (dir === base ? null : gateRoot(base));
+}
+
 async function hookGate(): Promise<number> {
   let text: string;
   try {
@@ -119,15 +151,18 @@ async function hookGate(): Promise<number> {
     err(`fagan commit gate: warning: no command string in tool_input (checked ${COMMAND_FIELDS.join(", ")}); allowing`);
     return 0;
   }
-  const targets = gitCommitTargets(command);
+  const targets = gitCommitTargets(command, homeDir());
   if (targets.length === 0) return 0;
   try {
-    // Each commit runs in the payload cwd moved by its `-C`/`--chdir` values.
     const base = payloadCwd(payload);
-    const dirs = [...new Set(targets.map((t) => t.reduce((dir, p) => resolvePath(dir, p), base)))];
+    const roots = new Set<string>();
+    for (const chain of targets) {
+      const root = await commitRoot(base, chain);
+      if (root !== null) roots.add(root);
+    }
     const blocks: GateBlock[] = [];
-    for (const dir of dirs) {
-      for (const b of await gateBlocks(dir)) {
+    for (const root of roots) {
+      for (const b of await gateBlocks(root)) {
         if (!blocks.some((x) => x.inspection_id === b.inspection_id && x.root === b.root)) blocks.push(b);
       }
     }

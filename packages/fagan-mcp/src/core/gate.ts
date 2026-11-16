@@ -10,6 +10,12 @@
 // Each commit also reports the directories it runs in: `git -C <path>` and
 // the wrapper options `env -C`/`--chdir` and `sudo -D`/`--chdir`, in order,
 // so the gate checks the repo the commit really targets (review v1 issue 6).
+// A directory word is used as written after quote removal; a leading
+// unquoted `~` or `~/` with no quoted character before the first `/`
+// becomes the home directory. A word holding shell syntax the tokeniser
+// does not evaluate (`$`, `$(...)`, backticks, other tilde forms, glob or
+// brace characters outside quotes) reports `null`, and the CLI then checks
+// the payload cwd instead (review v2 issue 1).
 // Known gaps (design.md "Commit gate scope"): commands inside `sh -c '...'`,
 // `eval`, scripts and git aliases; `cd <dir> && git commit` (the gate checks
 // the payload cwd); `--git-dir`/`--work-tree`; `env -S`; commits made by
@@ -93,21 +99,55 @@ function closeBacktick(command: string, start: number): number {
   return command.length;
 }
 
+/** One shell word after quote removal. */
+export interface ShellWord {
+  /** The word's text with quotes removed and the output of command substitutions left out. */
+  text: string;
+  /**
+   * False when the shell would expand part of the word in a way the tokeniser
+   * does not evaluate: a `$` or backtick outside single quotes (parameters,
+   * `$(...)`, `$((...))`, `$'...'`), or `*`, `?`, `[` or `{` outside quotes.
+   */
+  literal: boolean;
+  /** True when the word starts with an unquoted `~` and nothing up to its first unquoted `/` is quoted (tilde expansion). */
+  tilde: boolean;
+}
+
+/** Characters that start pathname or brace expansion when unquoted. */
+const EXPANDING = new Set(["*", "?", "[", "{"]);
+
 /**
  * Splits a shell command into segments of words. The bodies of command
  * substitutions (`$(...)` and backticks, also inside double quotes) are split
  * as segments of their own, because the shell runs them.
  */
 export function shellSegments(command: string): string[][] {
-  const segments: string[][] = [];
-  const nested: string[][] = [];
-  let words: string[] = [];
+  return shellWordSegments(command).map((words) => words.map((w) => w.text));
+}
+
+/** `shellSegments` with each word's expansion flags (FM-R16.2). */
+export function shellWordSegments(command: string): ShellWord[][] {
+  const segments: ShellWord[][] = [];
+  const nested: ShellWord[][] = [];
+  let words: ShellWord[] = [];
   let word = "";
   let inWord = false;
+  let literal = true;
+  let tilde = false;
+  /** True from a word's leading unquoted `~` up to its first unquoted `/`: the tilde-prefix. */
+  let tildePrefix = false;
   const endWord = (): void => {
-    if (inWord) words.push(word);
+    if (inWord) words.push({ text: word, literal, tilde });
     word = "";
     inWord = false;
+    literal = true;
+    tilde = false;
+    tildePrefix = false;
+  };
+  /** A quoted or escaped character inside the tilde-prefix turns tilde expansion off (POSIX 2.6.1). */
+  const quotedChar = (): void => {
+    if (tildePrefix) tilde = false;
+    tildePrefix = false;
   };
   const endSegment = (): void => {
     endWord();
@@ -118,14 +158,16 @@ export function shellSegments(command: string): string[][] {
   const substitution = (i: number): number => {
     if (command.startsWith("$(", i)) {
       const end = closeParen(command, i + 2);
-      nested.push(...shellSegments(command.slice(i + 2, Math.max(i + 2, end - 1))));
+      nested.push(...shellWordSegments(command.slice(i + 2, Math.max(i + 2, end - 1))));
       inWord = true;
+      literal = false;
       return end;
     }
     if (command[i] === "`") {
       const end = closeBacktick(command, i + 1);
-      nested.push(...shellSegments(command.slice(i + 1, Math.max(i + 1, end - 1))));
+      nested.push(...shellWordSegments(command.slice(i + 1, Math.max(i + 1, end - 1))));
       inWord = true;
+      literal = false;
       return end;
     }
     return -1;
@@ -140,6 +182,7 @@ export function shellSegments(command: string): string[][] {
       continue;
     }
     if (ch === "'") {
+      quotedChar();
       const close = command.indexOf("'", i + 1);
       const end = close < 0 ? command.length : close;
       word += command.slice(i + 1, end);
@@ -148,6 +191,7 @@ export function shellSegments(command: string): string[][] {
       continue;
     }
     if (ch === '"') {
+      quotedChar();
       inWord = true;
       i++;
       while (i < command.length && command[i] !== '"') {
@@ -158,6 +202,7 @@ export function shellSegments(command: string): string[][] {
           if (command[i + 1] !== "\n") word += command[i + 1];
           i += 2;
         } else {
+          if (command[i] === "$") literal = false;
           word += command[i];
           i++;
         }
@@ -168,6 +213,7 @@ export function shellSegments(command: string): string[][] {
     if (ch === "\\") {
       if (i + 1 < command.length) {
         if (command[i + 1] !== "\n") {
+          quotedChar();
           word += command[i + 1];
           inWord = true;
         }
@@ -193,6 +239,13 @@ export function shellSegments(command: string): string[][] {
       i++;
       continue;
     }
+    if (ch === "$" || EXPANDING.has(ch)) literal = false;
+    if (ch === "~" && !inWord) {
+      tilde = true;
+      tildePrefix = true;
+    } else if (ch === "/") {
+      tildePrefix = false;
+    }
     word += ch;
     inWord = true;
     i++;
@@ -201,16 +254,19 @@ export function shellSegments(command: string): string[][] {
   return [...segments, ...nested];
 }
 
+/** A literal word as `shellWordSegments` would report it. */
+const literalWord = (text: string): ShellWord => ({ text, literal: true, tilde: false });
+
 /**
- * The directories a `git ... commit` segment runs in, as written, in the
- * order they apply (wrapper chdir options, then `git -C` values); `null` when
- * the segment is not a git commit. An empty list means the shell's cwd.
+ * The directory words of a `git ... commit` segment, in the order they apply
+ * (wrapper chdir options, then `git -C` values); `null` when the segment is
+ * not a git commit. An empty list means the shell's cwd.
  */
-export function gitCommitDirs(words: readonly string[]): string[] | null {
-  const dirs: string[] = [];
+export function gitCommitDirs(words: readonly ShellWord[]): ShellWord[] | null {
+  const dirs: ShellWord[] = [];
   let i = 0;
   for (;;) {
-    const w = words[i];
+    const w = words[i]?.text;
     if (w === undefined) return null;
     if (ASSIGNMENT_RE.test(w)) {
       i++;
@@ -220,16 +276,18 @@ export function gitCommitDirs(words: readonly string[]): string[] | null {
     if (wrapper !== undefined) {
       i++;
       // Skip the wrapper's own options, such as `env -i`, `sudo -u root` or `nice -n 5`.
-      while (words[i]?.startsWith("-") === true) {
-        const opt = words[i] as string;
+      while (words[i]?.text.startsWith("-") === true) {
+        const optWord = words[i] as ShellWord;
+        const opt = optWord.text;
         i++;
         if (opt === "--") break;
         const eq = opt.indexOf("=");
         const name = opt.startsWith("--") && eq > 0 ? opt.slice(0, eq) : opt;
         if (eq > 0 && opt.startsWith("--")) {
-          if (wrapper.chdirOptions.has(name)) dirs.push(opt.slice(eq + 1));
+          // No tilde expansion after `=` here: the word is not a variable assignment.
+          if (wrapper.chdirOptions.has(name)) dirs.push({ text: opt.slice(eq + 1), literal: optWord.literal, tilde: false });
         } else if (wrapper.valueOptions.has(name)) {
-          if (wrapper.chdirOptions.has(name) && words[i] !== undefined) dirs.push(words[i] as string);
+          if (wrapper.chdirOptions.has(name) && words[i] !== undefined) dirs.push(words[i] as ShellWord);
           i++;
         }
       }
@@ -238,14 +296,14 @@ export function gitCommitDirs(words: readonly string[]): string[] | null {
     }
     break;
   }
-  const program = words[i];
+  const program = words[i]?.text;
   if (program === undefined || !(program === "git" || program.endsWith("/git"))) return null;
   i++;
   while (i < words.length) {
-    const w = words[i] as string;
-    if (w === "--") return words[i + 1] === "commit" ? dirs : null;
+    const w = (words[i] as ShellWord).text;
+    if (w === "--") return words[i + 1]?.text === "commit" ? dirs : null;
     if (!w.startsWith("-")) return w === "commit" ? dirs : null;
-    if (w === "-C" && words[i + 1] !== undefined) dirs.push(words[i + 1] as string);
+    if (w === "-C" && words[i + 1] !== undefined) dirs.push(words[i + 1] as ShellWord);
     i += OPTIONS_WITH_VALUE.has(w) ? 2 : 1;
   }
   return null;
@@ -253,14 +311,30 @@ export function gitCommitDirs(words: readonly string[]): string[] | null {
 
 /** True when one segment's words run `git ... commit`. */
 export function isGitCommitSegment(words: readonly string[]): boolean {
-  return gitCommitDirs(words) !== null;
+  return gitCommitDirs(words.map(literalWord)) !== null;
 }
 
-/** For each git commit segment of the shell command, the directories it runs in (FM-R16.2). */
-export function gitCommitTargets(command: string): string[][] {
-  return shellSegments(command)
+/**
+ * The path a directory word names, or null when it holds shell syntax the
+ * tokeniser does not evaluate. `~` and `~/...` (unquoted) expand to `home`;
+ * other tilde forms (`~user`, `~+`, `~-`) and a null `home` give null.
+ */
+export function dirWordPath(word: ShellWord, home: string | null): string | null {
+  if (!word.literal) return null;
+  if (!word.tilde) return word.text;
+  if (home === null || !(word.text === "~" || word.text.startsWith("~/"))) return null;
+  return home + word.text.slice(1);
+}
+
+/**
+ * For each git commit segment of the shell command, the directories it runs
+ * in, in order; null for a directory word the CLI cannot know (FM-R16.2).
+ */
+export function gitCommitTargets(command: string, home: string | null = null): Array<Array<string | null>> {
+  return shellWordSegments(command)
     .map(gitCommitDirs)
-    .filter((d): d is string[] => d !== null);
+    .filter((d): d is ShellWord[] => d !== null)
+    .map((dirs) => dirs.map((w) => dirWordPath(w, home)));
 }
 
 /** True when any segment of the shell command is a git commit (FM-R16.2). */
