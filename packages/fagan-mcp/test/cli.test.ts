@@ -35,6 +35,13 @@ function fagan(cwd: string, args: string[], input = ""): Run {
 const payload = (command: unknown, extra: Record<string, unknown> = {}): string =>
   JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "shell", tool_input: { command }, ...extra });
 
+/**
+ * A hook payload Kiro CLI V3 sent in a live session (docs/experiments.md E1,
+ * E2), with the scratch repo path replaced by `@REPO@`, which this fills in.
+ */
+const recorded = (name: string, root: string): string =>
+  readFileSync(new URL(`./fixtures/kiro-payloads/${name}`, import.meta.url), "utf8").split("@REPO@").join(root);
+
 const repos: Array<{ cleanup: () => void }> = [];
 function repo(config = fixtureConfig): string {
   const r = fixtureRepo(config);
@@ -169,6 +176,55 @@ describe("fagan hook gate", () => {
     expect(fagan(tmpdir(), ["hook", "gate"], payload("git commit -m x")).status).toBe(0);
   });
 
+  it("FM-R16.3 FM-R16.4 FM-R16.5 recorded Kiro payloads: the commit exits 2 with an open major and 0 without (E2)", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    const blocked = fagan(tmpdir(), ["hook", "gate"], recorded("pre-tool-use-commit.json", root));
+    expect(blocked.status).toBe(2);
+    expect(blocked.stdout).toContain("insp-0001: D001");
+    expect(blocked.stderr).toContain("insp-0001: D001");
+    const fresh = repo();
+    expect(fagan(tmpdir(), ["hook", "gate"], recorded("pre-tool-use-commit.json", fresh))).toEqual({ status: 0, stdout: "", stderr: "" });
+    // The recorded git status calls, with and without the tool's cwd, and the PostToolUse shape.
+    for (const name of ["pre-tool-use-git-status.json", "pre-tool-use-git-status-tool-cwd.json", "post-tool-use-git-status.json"]) {
+      expect(fagan(tmpdir(), ["hook", "gate"], recorded(name, root)), name).toEqual({ status: 0, stdout: "", stderr: "" });
+    }
+  });
+
+  it("FM-R16.2 FM-R16.3 checks the repo in tool_input.cwd before the payload cwd (E2)", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    const clean = repo();
+    /** The recorded commit payload with session cwd `session`, tool cwd `cwd` and, optionally, another command. */
+    const gate = (session: string, cwd: unknown, command?: string): number | null => {
+      const p = JSON.parse(recorded("pre-tool-use-commit.json", session)) as { tool_input: Record<string, unknown> };
+      p.tool_input["cwd"] = cwd;
+      if (command !== undefined) p.tool_input["command"] = command;
+      return fagan(tmpdir(), ["hook", "gate"], JSON.stringify(p)).status;
+    };
+    // The shell tool runs the command in tool_input.cwd, so that repo is checked.
+    expect(gate(clean, root)).toBe(2);
+    expect(gate(clean, join(root, "src"))).toBe(2);
+    expect(gate(root, clean)).toBe(0);
+    // A relative tool cwd resolves against the payload cwd.
+    expect(gate(clean, relative(clean, join(root, "src")))).toBe(2);
+    expect(gate(root, relative(root, clean))).toBe(0);
+    // -C and --chdir start from the tool cwd.
+    expect(gate(clean, join(root, "src"), "git -C .. commit -m x")).toBe(2);
+    expect(gate(root, join(clean, "src"), "git -C .. commit -m x")).toBe(0);
+    expect(gate(root, clean, `git -C ${JSON.stringify(root)} commit -m x`)).toBe(2);
+    // An unknown -C word falls back to the tool cwd repo; a tool cwd outside any repo falls back to the payload cwd repo.
+    expect(gate(clean, root, 'git -C "$PWD" commit -m x')).toBe(2);
+    expect(gate(root, clean, 'git -C "$PWD" commit -m x')).toBe(0);
+    expect(gate(root, tmpdir())).toBe(2);
+    expect(gate(clean, tmpdir())).toBe(0);
+    // A null (as recorded), empty or non-string tool cwd means the payload cwd.
+    for (const cwd of [null, "", 42]) {
+      expect(gate(root, cwd), String(cwd)).toBe(2);
+      expect(gate(clean, cwd), String(cwd)).toBe(0);
+    }
+  });
+
   it("FM-R16.4 allows a commit when there is no store or no open major", async () => {
     const fresh = repo();
     expect(fagan(fresh, ["hook", "gate"], payload("git commit -m x"))).toEqual({ status: 0, stdout: "", stderr: "" });
@@ -295,6 +351,15 @@ describe("fagan hook suggest", () => {
     }
     const root = repo({ ...fixtureConfig, suggestThresholdLoc: 0 });
     expect(fagan(tmpdir(), ["hook", "suggest"], JSON.stringify({ cwd: root })).stdout).toContain("changed lines");
+  });
+
+  it("FM-R15.2 FM-R15.3 the recorded Stop payload suggests for its cwd (E1, E16)", () => {
+    const low = repo({ ...fixtureConfig, suggestThresholdLoc: 0 });
+    const r = fagan(tmpdir(), ["hook", "suggest"], recorded("stop.json", low));
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/^fagan: \d+ changed lines against HEAD \(threshold 0\)/);
+    const high = repo({ ...fixtureConfig, suggestThresholdLoc: 200 });
+    expect(fagan(tmpdir(), ["hook", "suggest"], recorded("stop.json", high))).toEqual({ status: 0, stdout: "", stderr: "" });
   });
 });
 

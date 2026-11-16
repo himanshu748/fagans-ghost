@@ -1,0 +1,14 @@
+{
+  "session_id": "sess_7449f3ae-9130-4b7e-bbd8-09764ac61f4a",
+  "hook_event_name": "PostToolUse",
+  "cwd": "@REPO@",
+  "tool_name": "execute_bash",
+  "tool_input": {
+    "command": "git status",
+    "description": "Show git working tree status",
+    "cwd": null,
+    "run_in_background": false,
+    "timeout": null
+  },
+  "tool_response": "Output:\nOn branch main\nnothing to commit, working tree clean\n\n\nExit Code: 0"
+}

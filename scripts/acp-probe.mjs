@@ -6,7 +6,7 @@
 //   node scripts/acp-probe.mjs --cwd <repo> --transcript <file.jsonl>
 //       [--allow <pattern>]... [--mode <modeId>] [--mode-via auto|meta|set_mode]
 //       [--timeout <seconds>] [--linger <seconds>] [--kiro <kiro-cli path>]
-//       [--stderr <file>] <prompt> [<prompt>...]
+//       [--stderr <file>] [--hooks-meta on|off] <prompt> [<prompt>...]
 //
 // It starts `kiro-cli acp --agent-engine=v3 --auth-method=cli` with cwd
 // <repo> and no shell, the way T3 Code starts Kiro, and speaks
@@ -24,6 +24,14 @@
 // a mode: "meta" sends _meta.kiro.modeId on session/new, "set_mode" calls
 // session/set_mode after it, and "auto" (the default) does the first and
 // then the second if session/new reports a different current mode.
+//
+// Hooks: initialize sends clientCapabilities._meta.kiro.hooks
+// { enabled: true, v2: true } unless --hooks-meta off is given. kiro.dev does
+// not document this field. In kiro-cli 3.3.0 the agent server builds its
+// hook cache for .kiro/hooks/*.json only when the client sends it (read in
+// the installed @kiro/agent bundle, docs/experiments.md E1), and T3 Code's
+// own sessions log "v2 hooks cache initialized", so T3 Code sends it too.
+// Without it no workspace hook runs.
 //
 // Permission policy: each session/request_permission is matched against the
 // --allow patterns (* is the only wildcard; the whole key must match). The
@@ -129,6 +137,7 @@ export async function main(argv) {
         linger: { type: "string" },
         kiro: { type: "string" },
         stderr: { type: "string" },
+        "hooks-meta": { type: "string" },
       },
     });
   } catch (e) {
@@ -139,6 +148,8 @@ export async function main(argv) {
   if (prompts.length === 0) return usage("give at least one prompt");
   const modeVia = values["mode-via"] ?? "auto";
   if (!["auto", "meta", "set_mode"].includes(modeVia)) return usage("--mode-via is auto, meta or set_mode");
+  const hooksMeta = values["hooks-meta"] ?? "on";
+  if (hooksMeta !== "on" && hooksMeta !== "off") return usage("--hooks-meta is on or off");
   const timeoutS = Number(values.timeout ?? "300");
   const lingerS = Number(values.linger ?? "3");
   if (!(timeoutS > 0) || !(lingerS >= 0)) return usage("--timeout must be > 0 and --linger >= 0");
@@ -152,7 +163,7 @@ export async function main(argv) {
   const log = (dir, msg) => appendFileSync(transcript, `${JSON.stringify({ t: new Date().toISOString(), dir, msg: redact(msg) })}\n`);
   const say = (text) => process.stdout.write(`[probe] ${text}\n`);
 
-  log("note", { argv: [kiro, ...ARGV], cwd, allow, mode: values.mode ?? null, modeVia, prompts });
+  log("note", { argv: [kiro, ...ARGV], cwd, allow, mode: values.mode ?? null, modeVia, hooksMeta, prompts });
   const child = spawn(kiro, ARGV, { cwd, stdio: ["pipe", "pipe", "pipe"], shell: false });
   let childExited = false;
   const exited = new Promise((res) => {
@@ -274,9 +285,11 @@ export async function main(argv) {
   const wait = (ms) => new Promise((res) => setTimeout(res, ms));
   let code = 0;
   try {
+    const clientCapabilities = { fs: { readTextFile: false, writeTextFile: false }, terminal: false };
+    if (hooksMeta === "on") clientCapabilities._meta = { kiro: { hooks: { enabled: true, v2: true } } };
     const init = await request("initialize", {
       protocolVersion: 1,
-      clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+      clientCapabilities,
       clientInfo: { name: "fagan-acp-probe", version: "0.1.0" },
     });
     const caps = init?.agentCapabilities ?? {};

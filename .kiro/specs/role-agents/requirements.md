@@ -112,3 +112,10 @@ Glossary:
 2. **RA-R9.2** WHEN the config test checks tool names THE SYSTEM SHALL compare every `fagan` tool named in agent tools, permission rules and hook matchers with the registered tools, SHALL check that the registered tools equal the keys of `ALLOWED_ROLES` without `get_packet:meeting`, and SHALL check that `.kiro/settings/mcp.json` registers server `fagan`.
 3. **RA-R9.3** WHEN `kiro-cli` is not on PATH (as in CI) THE SYSTEM SHALL skip the `kiro-cli agent validate` test instead of failing it.
 4. **RA-R9.4** WHEN the launcher tests run THE SYSTEM SHALL run the fallback cases on a copy of the launcher in a temp folder with no built CLI, and the forwarding cases with the working directory set to a temp git repo, never against this repo's own `.fagan` store.
+
+## Requirement 10: Experiment client
+
+**User story:** As the maintainer running the live Kiro experiments, I want a small ACP client that starts Kiro the way T3 Code does and can never make a lasting permission choice, so that experiment results match the real client and leave no trust or permission records behind.
+
+1. **RA-R10.1** WHEN `scripts/acp-probe.mjs` starts Kiro THE SYSTEM SHALL run the `kiro-cli` binary without a shell, with the arguments `acp`, `--agent-engine=v3` and `--auth-method=cli` and the target repo as working directory, and SHALL append every JSON-RPC message in either direction to the transcript file as one JSON line, with string values under token, secret, password, authorization and cookie keys replaced.
+2. **RA-R10.2** WHEN Kiro sends `session/request_permission` THE SYSTEM SHALL select the `allow_once` option for a request whose `@<server>/<tool>` or `<capability>:<resource>` key matches an `--allow` pattern and the `reject_once` option otherwise, SHALL answer `cancelled` when that one-time option is missing, and SHALL never select an `allow_always` or `reject_always` option.

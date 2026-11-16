@@ -4,9 +4,9 @@ Results of the experiments listed in PLAN.md section 2.4. Each row records what 
 
 | ID | Question (short) | Step | Status | Result |
 | --- | --- | --- | --- | --- |
-| E1 | Do workspace hooks fire in a V3 session driven by T3 Code over ACP? | 3 | Not run yet | |
-| E2 | Shell tool ID and command field in `tool_input` | 3 | Not run yet | See "Review v1 follow-ups" below |
-| E3 | Does exit code 2 block the shell call in CLI V3? Where does stderr show? | 3 | Not run yet | |
+| E1 | Do workspace hooks fire in a V3 session driven by T3 Code over ACP? | 3 | Done | Yes, once `initialize` sends `clientCapabilities._meta.kiro.hooks` `{ enabled: true, v2: true }`, which T3 Code sends. Without it no hook runs. See below |
+| E2 | Shell tool ID and command field in `tool_input` | 3 | Done | Hook `tool_name` `execute_bash` (ACP tool call IDs start `run_command_`); command in `tool_input.command`; `tool_input.cwd` is the shell tool's working directory, `null` unless the agent sets it. See below |
+| E3 | Does exit code 2 block the shell call in CLI V3? Where does stderr show? | 3 | Done | Yes: a live `git commit --allow-empty` was blocked over ACP with one open major, commit count stayed 1. The agent got the gate's message; the ACP client got only a `failed` tool update. See below |
 | E4 | Does matcher `@fagan/record_rework` match `mcp_fagan_record_rework`? | 3 | Not run yet | |
 | E5 | Does a `Stop` hook `confirm` block work over ACP? | 3 | Not run yet | |
 | E6 | Does the T3 Code client expose `/spec`, `/agent`, `/hooks` and manual steering slash commands? | 2 | Partly run | See below |
@@ -19,7 +19,7 @@ Results of the experiments listed in PLAN.md section 2.4. Each row records what 
 | E13 | Does `auto` steering inclusion trigger in CLI V3 for our description? | 2 | Not observed | See below |
 | E14 | Do `skill://` resources in agent files load power skills? | 5 | Not run yet | |
 | E15 | How do Kiro Correctness properties relate to our fast-check tests? | after 2, in IDE | Not run yet | Needs the Kiro IDE (you) |
-| E16 | Is the `Stop` / `PostToolUse` payload the same shape as `PreToolUse`? | 3 | Not run yet | |
+| E16 | Is the `Stop` / `PostToolUse` payload the same shape as `PreToolUse`? | 3 | Done | No. `Stop` has only `session_id`, `hook_event_name`, `cwd`; `PostToolUse` is the `PreToolUse` payload plus `tool_response`. See E1 |
 
 ## E6: slash commands in the T3 Code client (step 2)
 
@@ -122,7 +122,7 @@ A semantic review of the step 2 code (FEAT-001 to FEAT-003) on 2026-11-16 return
 
 ## Review v1 follow-ups (for step 3)
 
-- E2 and the commit gate (review v1 issue 4): `fagan hook gate` reads `tool_input.command`, then `tool_input.cmd`, and allows the call with a stderr warning when neither is a string (FM-R16.5). If Kiro uses another field, every commit passes. Step 3 acceptance for the gate is "the gate blocked a real `git commit` in a live Kiro session", not only "payload field recorded". Tracked as task 16 in `.kiro/specs/fagan-mcp/tasks.md`.
+- E2 and the commit gate (review v1 issue 4): `fagan hook gate` reads `tool_input.command`, then `tool_input.cmd`, and allows the call with a stderr warning when neither is a string (FM-R16.5). If Kiro uses another field, every commit passes. Step 3 acceptance for the gate is "the gate blocked a real `git commit` in a live Kiro session", not only "payload field recorded". Tracked as task 16 in `.kiro/specs/fagan-mcp/tasks.md`. Done in step 3: see "E2 and E3" below.
 
 ## Review v2 fixes (step 2)
 
@@ -216,3 +216,161 @@ exit 0
 ```
 
 The temp folder was deleted afterwards. Conclusion: the validator checks JSON types and that a `file://` prompt exists, and it accepts unknown fields, unknown capability names and unknown effects. A typo such as `"capability": "fs_wirte"` or `"effect": "dney"` would pass it, and whether Kiro then ignores that rule was not tested. So `packages/fagan-mcp/test/kiro-config.test.ts` parses the agent and hook files with strict schemas that list the documented fields, capabilities, effects and triggers (RA-R9.1), and checks the tool scopes and rules itself. The same test runs `kiro-cli agent validate` on every agent when `kiro-cli` is on PATH (RA-R1.4) and skips it otherwise, as in CI.
+
+## Step 3 live experiments: setup
+
+Run on 2026-11-16 with `kiro-cli 3.3.0` on macOS. Pages read first: [Migrate an ACP client to CLI V3](https://kiro.dev/docs/cli/v3/acp-migration.md), [ACP](https://kiro.dev/docs/cli/acp.md), [Agent Client Protocol (Kiro)](https://kiro.dev/docs/acp.md), and the ACP spec pages [initialization](https://agentclientprotocol.com/protocol/initialization), [session setup](https://agentclientprotocol.com/protocol/session-setup), [prompt turn](https://agentclientprotocol.com/protocol/prompt-turn), [tool calls](https://agentclientprotocol.com/protocol/tool-calls) and [session modes](https://agentclientprotocol.com/protocol/session-modes).
+
+- Client: `scripts/acp-probe.mjs` (Node built-ins only). It starts `kiro-cli acp --agent-engine=v3 --auth-method=cli` with the scratch repo as cwd, the same argv T3 Code uses (seen with `ps`), sends `initialize`, `session/new` and one `session/prompt` per prompt, and logs every message to a JSONL transcript. It answers `session/request_permission` with the `allow_once` option for requests whose key matches an `--allow` pattern and `reject_once` otherwise, and never picks a persistent option. Usage is in the comment at the top of the file.
+- Scratch repo: a folder from `mktemp -d -t fagan-acp` (here `<scratch>`, under `$TMPDIR`), never inside this repo. `<scratch>/repo` is a `git init` repo with one commit holding `README.md`, `src/calc.ts`, `.fagan/config.json` (copied from this repo with `build` and `test` set to `["node","-e","0"]` and `suggestThresholdLoc` 5), `.kiro/agents/` (copied), `.kiro/settings/mcp.json` (server `fagan` with the absolute path of this repo's `packages/fagan-mcp/dist/cli.js`) and `.kiro/hooks/` (copied, with `node scripts/fagan-hook.mjs` rewritten to the absolute path of this repo's launcher). One extra scratch-only hook file, `.kiro/hooks/zz-probe.json`, has `Stop`, `PreToolUse` (matcher `*`) and `PostToolUse` (matcher `*`) hooks that run `node <scratch>/probe-hook.mjs <trigger>`, which saves STDIN and its own cwd to a numbered file in `<scratch>/probe-log/` and exits 0. Probe logs live outside the repo so they do not change its diff.
+- Workspace trust: no run in this step was asked to trust the folder. Over ACP, `session/new` loaded the five workspace agents (they are listed as modes), started the workspace MCP server `fagan` (`_kiro/mcp/status` shows `"origin":"workspace"`, `"standing":{"kind":"active"}`, then `"status":"connected"` with the nine tools), and, once hooks were enabled (E1), loaded the workspace hooks. `git status` ran without a permission request, which matches the documented default allow list for read-only git commands ([permissions](https://kiro.dev/docs/permissions.md#default-behavior)); the permissions page says an untrusted workspace asks before every shell command, so the folder was not treated as untrusted. No trust record was written: `~/.kiro/workspace-roots/` still does not exist.
+- Modes advertised by `session/new` in the scratch repo: `vibe` (current), `spec`, `quick-spec`, `bug-fix`, `plan`, `autonomous`, `semantic_reviewer`, `inspector-interfaces`, `inspector-logic`, `moderator`, `reader`, `scribe`. The same list is the `mode` config option. Other config options: `memoryReflection` (off), `autopilot` (on), `contentCollection` (enabled). `agentCapabilities._meta.kiro.extensionMethods` has 44 methods and no `_kiro/hooks/list`; the hook list arrives as a `_kiro/hooks/didChange` notification instead.
+- Also seen in every session: Kiro reads `.kiro/agents/prompts/*.md` as agent files and sends one `_kiro/customAgent/config_error` notification per prompt file (`"reasonCode":"invalid_config","error":"AgentFileFormatError: No front matter found"`). The five JSON agents still load. The prompts folder sits under `.kiro/agents/` because the agent files point at `file://./prompts/<name>.md`; whether to move it is open (role-agents design.md).
+
+## E1: workspace hooks over ACP (step 3)
+
+First run, without any hook metadata in `initialize`:
+
+```text
+$ node scripts/acp-probe.mjs --cwd <scratch>/repo --transcript <scratch>/logs/e1.jsonl \
+    --allow 'shell:git status' --timeout 200 --linger 8 \
+    'Run exactly `git status` with your shell tool, then reply with the single word DONE.'
+[probe] tool_call run_command_toolu_bdrk_013F... kind=execute status=pending title=Show git working tree status rawInput={"command":"git status","description":"Show git working tree status","run_in_background":false}
+[probe] tool_call_update run_command_toolu_bdrk_013F... status=completed content=Output:
+On branch main
+nothing to commit, working tree clean
+[probe] prompt 1 stopReason=end_turn
+[probe] agent said: DONE
+```
+
+The shell call ran, but `<scratch>/probe-log/` stayed empty: no `PreToolUse`, `PostToolUse` or `Stop` hook ran, and Kiro's session log (`~/.kiro/logs/<launch>/kiro.log`) had no hook lines at all. The log of one of T3 Code's own Kiro sessions on this machine has `[KiroAgent] v2 hooks cache initialized (hooks load at session start)` right after `initialize`, and the probe session did not. Both logs show the same resolved client capabilities (all false) and both clients are "inferred" as `kiro-ide` (`reportedClientName` `t3-code` and `fagan-acp-probe`). Reading the installed agent server (`~/Library/Application Support/kiro-cli/kas/3.3.0-.../node_modules/@kiro/agent/dist/server/acp-server.js`) showed why: `initialize` builds the hook cache for standalone `.kiro/hooks/*.json` files only when `clientCapabilities._meta.kiro.hooks.enabled` is true and `.v2` is `true`, and with `enabled` but no `v2` it wires client-side "v1 ACP hook providers" instead. No kiro.dev page documents this field; [kiro.dev/docs/acp](https://kiro.dev/docs/acp.md) only says the harness applies Hooks "when available for a session".
+
+Second run, the same command after the probe started sending `clientCapabilities._meta.kiro.hooks` `{ "enabled": true, "v2": true }` (now its default; `--hooks-meta off` gives the first behaviour). Kiro sent a `_kiro/hooks/didChange` notification listing all six hooks with `"source":"standalone-file"` and `"standing":{"kind":"active"}`, and then:
+
+```text
+[probe] session_info_update kind=turn_start
+[probe] session_info_update kind=hook_update        (Fagan commit gate, status completed)
+[probe] session_info_update kind=hook_update        (probe PreToolUse, status completed)
+[probe] tool_call run_command_toolu_bdrk_01Qc... kind=execute status=pending title=Show git working tree status rawInput={"command":"git status","description":"Show git working tree status","run_in_background":false}
+[probe] tool_call_update run_command_toolu_bdrk_01Qc... status=completed content=Output:
+On branch main
+nothing to commit, working tree clean
+[probe] session_info_update kind=hook_update        (probe PostToolUse, status completed)
+[probe] session_info_update kind=hook_update        (Suggest a Fagan inspection, status completed)
+[probe] session_info_update kind=hook_update        (probe Stop, status completed)
+[probe] prompt 1 stopReason=end_turn
+[probe] agent said: DONE
+```
+
+Each `hook_update` carries `_meta.kiro.hook` `{ hookId, operationId, name, status, actionType: "runCommand" }`. Three probe files appeared, one per trigger. Their STDIN, with the scratch path shortened:
+
+```json
+{"session_id":"sess_7449f3ae-...","hook_event_name":"PreToolUse","cwd":"<scratch>/repo","tool_name":"execute_bash","tool_input":{"command":"git status","description":"Show git working tree status","cwd":null,"run_in_background":false,"timeout":null}}
+{"session_id":"sess_7449f3ae-...","hook_event_name":"PostToolUse","cwd":"<scratch>/repo","tool_name":"execute_bash","tool_input":{"command":"git status","description":"Show git working tree status","cwd":null,"run_in_background":false,"timeout":null},"tool_response":"Output:\nOn branch main\nnothing to commit, working tree clean\n\n\nExit Code: 0"}
+{"session_id":"sess_7449f3ae-...","hook_event_name":"Stop","cwd":"<scratch>/repo"}
+```
+
+Conclusions:
+
+- Workspace hooks fire over ACP in CLI V3 when the client opts in with `clientCapabilities._meta.kiro.hooks` `{ enabled: true, v2: true }`. T3 Code's sessions log the line that this opt-in produces, so hooks are expected to run under T3 Code; a third-party ACP client that does not send it gets no hooks and no warning.
+- The hook `tool_name` for the V3 shell tool is `execute_bash`, while the ACP `toolCallId` starts with `run_command_` and Kiro's own log calls the action type `run_command`. The `shell` matcher in `.kiro/hooks/commit-gate.json` matched it (the gate ran and exited 0 for `git status`).
+- The command is in `tool_input.command`. `tool_input` also has `cwd` (here `null`), `description`, `run_in_background` and `timeout`. The ACP `rawInput` omits the null `cwd` and `timeout` keys.
+- The hook process runs in the project root: the probe hook's `process.cwd()` was `/private/var/folders/.../repo`, the resolved form of the payload `cwd` (`/var` is a symlink to `/private/var` on macOS).
+- The `Stop` hook runs after the tool hooks and before the `session/prompt` response.
+
+Headless repeat, in `<scratch>/repo`, with the local `kiro-cli` login (no `KIRO_API_KEY` set or created):
+
+```text
+$ gtimeout 180 kiro-cli chat --v3 --no-interactive --output-format stream-json \
+    'Run exactly `git status` with your shell tool, then reply with the single word DONE.'
+{"type":"runStarted","data":{"payloadSchema":"acp","acpProtocolVersion":1,"engine":"v3"}}
+...  session_info_update hook_update "Fagan commit gate" completed, "probe PreToolUse" completed
+...  tool_call run_command_toolu_bdrk_01DN... rawInput {"command":"git status",...}
+...  session_info_update hook_update "probe PostToolUse" completed
+...  agent_message_chunk "DONE"
+...  session_info_update hook_update "Suggest a Fagan inspection" completed, "probe Stop" completed
+{"type":"runFinished","data":{"sessionId":"sess_f25e6068-...","status":"success","stopReason":"end_turn","finalText":"DONE","finalTextTruncated":false}}
+```
+
+It ran with the local login, so the [headless page](https://kiro.dev/docs/cli/headless.md)'s `KIRO_API_KEY` is not needed on a signed-in machine. stderr had one throttling line (`HTTP 429 ... USER_REQUEST_RATE_EXCEEDED`) and the run still finished. The headless stream uses the same ACP `session/update` shapes. The three probe payloads had the same keys and values as over ACP, except that `cwd` was the resolved `/private/var/.../repo`: headless takes the process cwd, while over ACP it is the `cwd` the client sent in `session/new`.
+
+## E16: payload shapes per trigger (step 3)
+
+From the E1 second run above: `PreToolUse` has `session_id`, `hook_event_name`, `cwd`, `tool_name`, `tool_input`. `PostToolUse` has the same keys plus `tool_response` (a string with the tool output and exit code). `Stop` has only `session_id`, `hook_event_name` and `cwd`, with no tool fields and no transcript. `fagan hook suggest` reads only `cwd`, so it works with the real `Stop` payload; `fagan hook gate` reads `tool_input.command` and `cwd`, which the real `PreToolUse` payload has.
+
+## E2 and E3: the commit gate in a live session (step 3)
+
+Setup: `src/calc.ts` in `<scratch>/repo` was changed to add `sub` with `return a - b + 1;`, and a short scratch script (`<scratch>/to-rework.mjs`, the SDK `Client` and `StdioClientTransport` pattern of `packages/fagan-mcp/test/contract.test.ts`) drove the scratch repo's own `fagan serve`: `open_inspection`, `get_packet` for preparation and the meeting, `record_reading` for the one unit, `log_defect` with one major, `close_meeting`. Output: `close_meeting: {"phase":"Rework","defects":{"total":1,"major":1,"minor":0,...},"units_read":1,"units_total":1,...}`. This inspection is scratch fixture data and is not in this repo. `git -C <scratch>/repo rev-list --count HEAD` printed `1`.
+
+One ACP session in `<scratch>/repo`, three prompts in order:
+
+```text
+$ node scripts/acp-probe.mjs --cwd <scratch>/repo --transcript <scratch>/logs/e2.jsonl \
+    --allow 'shell:git commit --allow-empty -m "gate probe"' --allow 'shell:git status' \
+    --timeout 360 --linger 8 \
+    'Run exactly this command with your shell tool, once, and do not run any other command first or after: git commit --allow-empty -m "gate probe". Then reply with one sentence saying what happened, quoting any message you were shown.' \
+    'Now run exactly `git status` with your shell tool and reply with the single word DONE.' \
+    "Now run exactly \`git status\` with your shell tool, and set the shell tool's cwd parameter to the absolute path <scratch>/repo/src (do not put cd in the command). Reply with the single word DONE."
+[probe] prompt 1/3: Run exactly this command with your shell tool, once, ...
+[probe] session_info_update kind=hook_update        (Fagan commit gate, status completed)
+[probe] session_info_update kind=hook_update        (probe PreToolUse, status completed)
+[probe] tool_call_update toolu_bdrk_015EyzE9GVjRn3Jg69g8jK2A status=failed
+[probe] prompt 1 stopReason=end_turn
+[probe] agent said: The commit didn't run. A pre-tool hook blocked it with this message: "fagan commit gate: blocked. Open major defects: insp-0001: D001. Fix them and run follow_up, or have the Author waive them with a reason, before committing."
+[probe] prompt 2/3: Now run exactly `git status` with your shell tool and reply with the single word DONE.
+[probe] tool_call run_command_toolu_bdrk_01Ue... kind=execute status=pending title=Run Command rawInput={"command":"git status","run_in_background":false}
+[probe] tool_call_update run_command_toolu_bdrk_01Ue... status=completed content=Output:
+On branch main
+Changes not staged for commit:
+	modified:   src/calc.ts
+Untracked files:
+	.fagan/inspections/
+[probe] agent said: DONE
+[probe] prompt 3/3: Now run exactly `git status` with your shell tool, and set the shell tool's cwd parameter to ...
+[probe] tool_call run_command_toolu_bdrk_01SZ... kind=execute status=pending title=Run Command rawInput={"command":"git status","cwd":"<scratch>/repo/src","run_in_background":false}
+[probe] tool_call_update run_command_toolu_bdrk_01SZ... status=completed content=Output:
+On branch main
+Changes not staged for commit:
+	modified:   calc.ts
+Untracked files:
+	../.fagan/inspections/
+[probe] agent said: DONE
+```
+
+(The `git status` hint lines are cut here.) Afterwards `git -C <scratch>/repo rev-list --count HEAD` printed `1` and `git log --oneline` showed only `c082d44 scratch base`: the commit did not happen. The three `PreToolUse` payloads the probe hook saved (the gate got the same STDIN, since both hooks match the same call):
+
+```json
+{"session_id":"sess_bddc36cd-...","hook_event_name":"PreToolUse","cwd":"<scratch>/repo","tool_name":"execute_bash","tool_input":{"command":"git commit --allow-empty -m \"gate probe\"","description":null,"cwd":null,"run_in_background":false,"timeout":null}}
+{"session_id":"sess_bddc36cd-...","hook_event_name":"PreToolUse","cwd":"<scratch>/repo","tool_name":"execute_bash","tool_input":{"command":"git status","description":null,"cwd":null,"run_in_background":false,"timeout":null}}
+{"session_id":"sess_bddc36cd-...","hook_event_name":"PreToolUse","cwd":"<scratch>/repo","tool_name":"execute_bash","tool_input":{"command":"git status","description":null,"cwd":"<scratch>/repo/src","run_in_background":false,"timeout":null}}
+```
+
+Kiro's ACP updates and session log do not include a hook's exit code (the `hook_update` status is `completed` for the blocking gate too), so the first payload was piped back into the launcher in the same repo state:
+
+```text
+$ <payload 1> | node scripts/fagan-hook.mjs hook gate     (cwd <scratch>/repo)
+fagan commit gate: blocked. Open major defects: insp-0001: D001. Fix them and run follow_up, or have the Author waive them with a reason, before committing.   (stdout)
+fagan commit gate: blocked. Open major defects: insp-0001: D001. Fix them and run follow_up, or have the Author waive them with a reason, before committing.   (stderr)
+exit 2
+```
+
+Conclusions:
+
+- E2: the hook `tool_name` is `execute_bash` and the command is `tool_input.command`, which the gate already reads first (`COMMAND_FIELDS`), so the field list needed no change. `tool_input` always has the keys `command`, `description`, `cwd`, `run_in_background` and `timeout`, with `null` for unset ones. `tool_input.cwd` is the shell tool's working directory: when the agent set it, the command ran there (`git status` printed `calc.ts` relative to `src/`), while the payload's top-level `cwd` stayed the session cwd. The gate used only the top-level `cwd`, so a commit whose `tool_input.cwd` named another repo was checked against the wrong repo. The fix is below.
+- E3: exit 2 from a `PreToolUse` command hook blocks the shell call in CLI V3 over ACP. The agent received the gate's message (it quoted it word for word). The ACP client received no `tool_call` for the blocked call, only a `tool_call_update` with `status` `failed`, no `content` and no `_meta.kiro.failureReason`, and its `toolCallId` lacks the `run_command_` prefix that allowed calls have. A client such as T3 Code can therefore show a failed tool card while the reason only appears in the agent's reply. No `session/request_permission` reached the client for the commit, although `git commit` is not on the default allow list: the gate ran before Kiro would have asked. The `git status` control in the same session still ran.
+- fagan-mcp task 16.1: done, the gate blocked a real `git commit --allow-empty` from the agent in a live Kiro session while an open major existed, and the commit count stayed 1.
+
+The `tool_input.cwd` fix: `fagan hook gate` now starts from `tool_input.cwd` when it is a non-empty string (resolved against the payload `cwd`), moves it by any `-C`/`--chdir` words, and falls back first to the shell tool's directory repo and then to the payload `cwd` repo (FM-R16.2). With only the `src/cli.ts` change stashed and the CLI rebuilt, the new test `FM-R16.2 FM-R16.3 checks the repo in tool_input.cwd before the payload cwd (E2)` in `packages/fagan-mcp/test/cli.test.ts` failed at its first case (`expected +0 to be 2`: a commit with the session in a clean repo and `tool_input.cwd` in the repo with the open major was allowed); with the change it passes. Live check after the rebuild: a second scratch repo, `<scratch>/clean`, with the same `.kiro/` and `.fagan/config.json`, one commit and no inspections, and one ACP session there:
+
+```text
+$ node scripts/acp-probe.mjs --cwd <scratch>/clean --transcript <scratch>/logs/e2c.jsonl \
+    --allow 'shell:git commit --allow-empty -m "cwd probe"' --timeout 240 --linger 8 \
+    "Run exactly this command with your shell tool, once: git commit --allow-empty -m \"cwd probe\" . Set the shell tool's cwd parameter to the absolute path <scratch>/repo and do not put cd or -C in the command. Do not run any other command. Then reply with one sentence saying what happened, quoting any message you were shown."
+[probe] tool_call_update toolu_bdrk_01Y9... status=failed
+[probe] prompt 1 stopReason=end_turn
+[probe] agent said: The commit didn't run. A pre-tool-use hook (the fagan commit gate) blocked it with this message: "fagan commit gate: blocked. Open major defects: insp-0001: D001. Fix them and run follow_up, or have the Author waive them with a reason, before committing."
+```
+
+The saved payload: `{"session_id":"sess_ab83beb7-...","hook_event_name":"PreToolUse","cwd":"<scratch>/clean","tool_name":"execute_bash","tool_input":{"command":"git commit --allow-empty -m \"cwd probe\" .","description":"Run requested git commit probe","cwd":"<scratch>/repo","run_in_background":false,"timeout":null}}`. The agent copied the trailing ` .` of the prompt's sentence into the command; it is still a `git commit`. Piped back into the launcher from `<scratch>/clean` it exits 2. Both scratch repos still have one commit each (`c082d44 scratch base`, `cd74748 clean base`).
+
+The recorded payloads, with the scratch repo path replaced by `@REPO@`, are test fixtures in `packages/fagan-mcp/test/fixtures/kiro-payloads/` (`pre-tool-use-commit.json`, `pre-tool-use-git-status.json`, `pre-tool-use-git-status-tool-cwd.json`, `post-tool-use-git-status.json`, `stop.json`), used by `cli.test.ts`.

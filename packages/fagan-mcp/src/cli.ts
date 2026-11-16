@@ -76,8 +76,10 @@ function payloadCwd(payload: unknown): string {
 }
 
 /**
- * Candidate fields for the shell command in `tool_input` (FM-R16.5). The real
- * field name is confirmed by experiment E2 in step 3; until then both are read.
+ * Fields of `tool_input` that may hold the shell command (FM-R16.5). E2
+ * (docs/experiments.md) recorded Kiro CLI V3's shell tool, `execute_bash`,
+ * sending `tool_input.command` over ACP and headless. `cmd` is still read
+ * second because other Kiro surfaces were not recorded.
  */
 export const COMMAND_FIELDS = ["command", "cmd"] as const;
 
@@ -89,6 +91,19 @@ export function commandFromPayload(payload: unknown): string | null {
     if (typeof v === "string") return v;
   }
   return null;
+}
+
+/**
+ * The directory the shell tool runs the command in (FM-R16.2): `tool_input.cwd`
+ * when it is a non-empty string, resolved against the payload `cwd`, else null.
+ * E2 recorded `execute_bash` sending `cwd: null` unless the agent sets the
+ * tool's cwd parameter, and running the command there when it does, while the
+ * payload's own `cwd` stays the session directory.
+ */
+export function toolCwd(payload: unknown, base: string): string | null {
+  if (!isObject(payload) || !isObject(payload["tool_input"])) return null;
+  const v = payload["tool_input"]["cwd"];
+  return typeof v === "string" && v.length > 0 ? resolvePath(base, v) : null;
 }
 
 async function hookSuggest(): Promise<number> {
@@ -114,23 +129,32 @@ function homeDir(): string | null {
 }
 
 /**
- * The repo one commit targets (FM-R16.2): the payload cwd moved, in order, by
- * its `-C`/`--chdir` values. A null value is a directory the shell computes
- * and the matcher does not evaluate; later relative values stay unknown and
- * an absolute one is known again. The payload cwd's repo is used instead when
- * the directory stays unknown, or when the moved directory is not inside a
- * git repo, so an unexpanded `$PWD` or a typo cannot skip the check (review
- * v2 issue 1). Null when neither is a repo.
+ * The repo one commit targets (FM-R16.2): the first of `bases` (the shell
+ * tool's directory, then the payload cwd) moved, in order, by its
+ * `-C`/`--chdir` values. A null value is a directory the shell computes and
+ * the matcher does not evaluate; later relative values stay unknown and an
+ * absolute one is known again. When the directory stays unknown, or the moved
+ * directory is not inside a git repo, the first of `bases` that is inside a
+ * repo is used instead, so an unexpanded `$PWD` or a typo cannot skip the
+ * check (review v2 issue 1). Null when none is a repo.
  */
-async function commitRoot(base: string, chain: ReadonlyArray<string | null>): Promise<string | null> {
-  let dir: string | null = base;
+async function commitRoot(bases: readonly [string, ...string[]], chain: ReadonlyArray<string | null>): Promise<string | null> {
+  let dir: string | null = bases[0];
   for (const p of chain) {
     if (p === null) dir = null;
     else if (dir !== null) dir = resolvePath(dir, p);
     else if (isAbsolute(p)) dir = resolvePath(p);
   }
-  if (dir === null) return gateRoot(base);
-  return (await gateRoot(dir)) ?? (dir === base ? null : gateRoot(base));
+  if (dir !== null) {
+    const root = await gateRoot(dir);
+    if (root !== null) return root;
+  }
+  for (const b of bases) {
+    if (b === dir) continue;
+    const root = await gateRoot(b);
+    if (root !== null) return root;
+  }
+  return null;
 }
 
 async function hookGate(): Promise<number> {
@@ -155,9 +179,11 @@ async function hookGate(): Promise<number> {
   if (targets.length === 0) return 0;
   try {
     const base = payloadCwd(payload);
+    const start = toolCwd(payload, base);
+    const bases: [string, ...string[]] = start === null || start === base ? [base] : [start, base];
     const roots = new Set<string>();
     for (const chain of targets) {
-      const root = await commitRoot(base, chain);
+      const root = await commitRoot(bases, chain);
       if (root !== null) roots.add(root);
     }
     const blocks: GateBlock[] = [];

@@ -429,6 +429,15 @@ The docs answer some of these on paper. FEAT-003 runs each one live in a scratch
 | E12 | Units and default of the hook `timeout` field | Seconds, default 60, 0 disables | An explicit `timeout` on every hook (already done) |
 | E16 | Is the `Stop` and `PostToolUse` payload the same shape as `PreToolUse`? | The documented example has `hook_event_name`, `cwd`, `session_id`, `tool_name`, `tool_input` | Scripts rely only on `cwd`, falling back to the process working directory (already the CLI's rule) |
 
+Results from FEAT-003 pass A (2026-11-16, kiro-cli 3.3.0, `docs/experiments.md` has the commands and output):
+
+- E1: workspace hooks fire over ACP only when the client's `initialize` sends `clientCapabilities._meta.kiro.hooks` `{ enabled: true, v2: true }`. kiro.dev does not document this; it was found in the installed agent server, and T3 Code's own Kiro sessions log the line it produces, so T3 Code turns hooks on. `scripts/acp-probe.mjs` sends it by default. Headless `kiro-cli chat --v3 --no-interactive` also runs the workspace hooks, with the local login and no API key. No fallback needed; the hook files are unchanged.
+- E2: hook `tool_name` `execute_bash` (ACP tool call IDs start `run_command_`), command in `tool_input.command`, plus `tool_input.cwd` for the shell tool's working directory. `COMMAND_FIELDS` is unchanged in `src/cli.ts` and `scripts/fagan-hook.mjs`; the CLI gate now starts from `tool_input.cwd` (FM-R16.2). The launcher's fallback gate needs no directory: it blocks any possible commit.
+- E3: exit 2 blocked a real `git commit --allow-empty` over ACP with an open major; the agent received the gate's message, while the ACP client got a `failed` `tool_call_update` with no content. No permission prompt appeared for the blocked commit.
+- E16: `Stop` has only `session_id`, `hook_event_name`, `cwd`; `PostToolUse` is the `PreToolUse` payload plus `tool_response`. The scripts' `cwd`-only rule holds.
+- Workspace trust over ACP: no trust prompt or trust request; the scratch repo's agents, MCP server and hooks loaded, and `~/.kiro/workspace-roots/` was not created.
+- Every session sends one `_kiro/customAgent/config_error` per file in `.kiro/agents/prompts/` (`AgentFileFormatError: No front matter found`): Kiro also reads `.md` files under `.kiro/agents/` as agent files. The five JSON agents still load. Moving the prompts out of `.kiro/agents/` would silence it; not changed yet.
+
 Known open risks for FEAT-003 and FEAT-004:
 
 - Workspace trust: interactive CLI V3 asks to trust a workspace before loading its hooks, agents, MCP servers and steering (permissions page). Trust is the human's decision; no agent writes a trust record.
@@ -447,6 +456,7 @@ Known open risks for FEAT-003 and FEAT-004:
 - `packages/fagan-mcp/test/kiro-config.test.ts`: parses every agent and hook file with strict schemas, checks tool scopes against `ALLOWED_ROLES`, permission rules, prompt paths, resource limits and steering, hook triggers, matchers, commands and timeouts, and runs `kiro-cli agent validate` on every agent when `kiro-cli` is on PATH (skipped in CI, RA-R9.3).
 - `packages/fagan-mcp/test/hook-launcher.test.ts`: fallback exit codes and messages on a copy of the launcher in a temp folder without `dist`, and forwarding of arguments, stdin and exit codes to the built CLI in a temp repo from `test/fixture.ts` (RA-R9.4). It never runs against this repo's `.fagan` store.
 - `packages/fagan-mcp/test/hook-launcher.property.test.ts`: the fallback classifier property below. The generators are shared with the gate property P7 through `test/gate-arbitraries.ts`.
+- `packages/fagan-mcp/test/acp-probe.test.ts`: the experiment client's launch arguments, transcript redaction and permission choices (RA-R10), using the request shapes from the [ACP migration guide](https://kiro.dev/docs/cli/v3/acp-migration.md).
 - The launcher is loaded from TypeScript with a computed dynamic import and a typed interface (`test/launcher.ts`), so `tsc` strict passes without `allowJs`.
 
 ## Correctness properties

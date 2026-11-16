@@ -93,10 +93,11 @@ Tasks 1 to 9 are the core, store, git and runner work (FEAT-002). Tasks 10 to 14
   - [x] 15.6 `noNewlineAtEof` carried into `packet.json`, `get_packet` and `report.txt`
   - _Requirements: FM-R1.5, FM-R4.7, FM-R8.5, FM-R9.6, FM-R10.1, FM-R13.2, FM-R15.2, FM-R16.2_
 
-- [ ] 16. Step 3: prove the commit gate in a live Kiro session (review v1 issue 4)
-  - [ ] 16.1 Run experiment E2 and record the real `PreToolUse` shell tool ID and command field in `docs/experiments.md`; change `COMMAND_FIELDS` in `src/cli.ts` if the field differs
-  - [ ] 16.2 Acceptance: with `.kiro/hooks/commit-gate.json` wired and an inspection holding an open major, the gate blocked a real `git commit` attempted by the agent in a live Kiro session. Recording the payload field alone does not complete this task
-  - _Requirements: FM-R16.3, FM-R16.5_
+- [x] 16. Step 3: prove the commit gate in a live Kiro session (review v1 issue 4)
+  - [x] 16.1 Run experiment E2 and record the real `PreToolUse` shell tool ID and command field in `docs/experiments.md`; change `COMMAND_FIELDS` in `src/cli.ts` if the field differs. Recorded: `tool_name` `execute_bash`, command in `tool_input.command`, so `COMMAND_FIELDS` is unchanged
+  - [x] 16.2 Acceptance: with `.kiro/hooks/commit-gate.json` wired and an inspection holding an open major, the gate blocked a real `git commit` attempted by the agent in a live Kiro session. Recording the payload field alone does not complete this task. Done over ACP in a scratch repo: `git commit --allow-empty -m "gate probe"` was blocked and the commit count stayed 1
+  - [x] 16.3 E2 also showed `tool_input.cwd`, the shell tool's working directory: the gate starts from it before the payload `cwd`; recorded payloads are fixtures in `test/fixtures/kiro-payloads/` for `cli.test.ts`
+  - _Requirements: FM-R16.2, FM-R16.3, FM-R16.5_
 
 - [x] 17. Review v2 fixes (review of the v1 fix pass, 4 issues)
   - [x] 17.1 Gate: `-C`/`--chdir` words the shell would expand, and directories outside a git repo, fall back to the payload `cwd` repo; `~` and `~/` expand to the home directory

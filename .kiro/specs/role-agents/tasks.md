@@ -49,13 +49,14 @@ Tasks 1 to 8 are the spec, agents, hooks, launcher and config tests (step 3, FEA
   - [x] 8.2 Probe on throwaway copies in a temp folder: what the validator accepts and rejects, recorded in E11
   - _Requirements: RA-R1.4, RA-R9.1_
 
-- [ ] 9. E1 and E16: hooks over ACP and payload shapes (FEAT-003)
-  - [ ] 9.1 In a scratch repo, record whether `Stop`, `PreToolUse` and `PostToolUse` hooks fire in an ACP V3 session, and the payload keys and `tool_name` values for each
-  - _Requirements: RA-R6.1, RA-R6.2, RA-R6.3_
+- [x] 9. E1 and E16: hooks over ACP and payload shapes (FEAT-003)
+  - [x] 9.1 In a scratch repo, record whether `Stop`, `PreToolUse` and `PostToolUse` hooks fire in an ACP V3 session, and the payload keys and `tool_name` values for each. All three fire once the client's `initialize` sends `clientCapabilities._meta.kiro.hooks` `{ enabled: true, v2: true }` (T3 Code does) and in headless `kiro-cli chat --v3 --no-interactive`; shell `tool_name` is `execute_bash`; `Stop` carries only `session_id`, `hook_event_name`, `cwd`; `PostToolUse` adds `tool_response`
+  - [x] 9.2 `scripts/acp-probe.mjs`, the ACP client for these experiments, and `packages/fagan-mcp/test/acp-probe.test.ts` for its launch arguments, redaction and one-time permission choices
+  - _Requirements: RA-R6.1, RA-R6.2, RA-R6.3, RA-R10.1, RA-R10.2_
 
-- [ ] 10. E2 and E3: the commit gate live (FEAT-003, fagan-mcp task 16)
-  - [ ] 10.1 Record the shell tool ID and command field; update `COMMAND_FIELDS` in `src/cli.ts` and the launcher if the field differs
-  - [ ] 10.2 With an open major, the gate blocks a real `git commit` attempted by the agent; record where stderr shows
+- [x] 10. E2 and E3: the commit gate live (FEAT-003, fagan-mcp task 16)
+  - [x] 10.1 Record the shell tool ID and command field; update `COMMAND_FIELDS` in `src/cli.ts` and the launcher if the field differs. `execute_bash` with `tool_input.command`: no change. The gate now also starts from `tool_input.cwd` (fagan-mcp task 16.3)
+  - [x] 10.2 With an open major, the gate blocks a real `git commit` attempted by the agent; record where stderr shows. Blocked over ACP, commit count unchanged; the agent received the message, the ACP client only a `failed` tool update
   - _Requirements: RA-R6.2, RA-R7.2_
 
 - [ ] 11. E4: after-rework matcher (FEAT-003)

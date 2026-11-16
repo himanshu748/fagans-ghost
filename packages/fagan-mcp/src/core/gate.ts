@@ -15,10 +15,11 @@
 // becomes the home directory. A word holding shell syntax the tokeniser
 // does not evaluate (`$`, `$(...)`, backticks, other tilde forms, glob or
 // brace characters outside quotes) reports `null`, and the CLI then checks
-// the payload cwd instead (review v2 issue 1).
+// the shell tool's directory (`tool_input.cwd`) or the payload cwd instead
+// (review v2 issue 1, E2).
 // Known gaps (design.md "Commit gate scope"): commands inside `sh -c '...'`,
 // `eval`, scripts and git aliases; `cd <dir> && git commit` (the gate checks
-// the payload cwd); `--git-dir`/`--work-tree`; `env -S`; commits made by
+// the shell tool's directory); `--git-dir`/`--work-tree`; `env -S`; commits made by
 // `git merge`, `cherry-pick`, `revert`, `am` or `rebase`.
 
 const SEPARATORS = new Set([";", "|", "&", "(", ")", "\n"]);
