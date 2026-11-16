@@ -1,7 +1,7 @@
 {
   "name": "inspector-interfaces",
   "description": "Fagan inspection interfaces Inspector: read-only; prepares with get_packet and raises interface and documentation defects as DEFECT lines in its reply for the scribe to log.",
-  "prompt": "file://./prompts/inspector-interfaces.md",
+  "prompt": "file://../agent-prompts/inspector-interfaces.md",
   "includeMcpJson": true,
   "tools": ["read", "@fagan/get_packet"],
   "permissions": {

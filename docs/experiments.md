@@ -14,7 +14,7 @@ Results of the experiments listed in PLAN.md section 2.4. Each row records what 
 | E8 | Does the scribe keep `log_defect` as a sub-agent of the moderator? | 3 | Not run yet | |
 | E9 | Command path resolution and server namespacing for a power's `mcp.json` | 5 | Not run yet | |
 | E10 | Can a power ship steering files or hooks? | 5 | Not run yet | |
-| E11 | Do all agent files pass `kiro-cli agent validate`? | 3 | Done | All five exit 0. The validator also accepted an unknown field, capability and effect; see below |
+| E11 | Do all agent files pass `kiro-cli agent validate`? | 3 | Done | All five exit 0. The validator also accepted an unknown field, capability and effect. Follow-up: prompts moved to `.kiro/agent-prompts/` after Kiro read them as agent files; all five still exit 0 and the `config_error` notifications stopped. See below |
 | E12 | Units and default of the hook `timeout` field | 3 | Not run yet | |
 | E13 | Does `auto` steering inclusion trigger in CLI V3 for our description? | 2 | Not observed | See below |
 | E14 | Do `skill://` resources in agent files load power skills? | 5 | Not run yet | |
@@ -217,6 +217,80 @@ exit 0
 
 The temp folder was deleted afterwards. Conclusion: the validator checks JSON types and that a `file://` prompt exists, and it accepts unknown fields, unknown capability names and unknown effects. A typo such as `"capability": "fs_wirte"` or `"effect": "dney"` would pass it, and whether Kiro then ignores that rule was not tested. So `packages/fagan-mcp/test/kiro-config.test.ts` parses the agent and hook files with strict schemas that list the documented fields, capabilities, effects and triggers (RA-R9.1), and checks the tool scopes and rules itself. The same test runs `kiro-cli agent validate` on every agent when `kiro-cli` is on PATH (RA-R1.4) and skips it otherwise, as in CI.
 
+### Follow-up: prompts moved out of .kiro/agents/ (2026-11-16, FEAT-005)
+
+The problem, from FEAT-003 pass A: every ACP session in the scratch repos (transcripts `t0`, `e1`, `e1b`, `e2`, `e2c`) received five `_kiro/customAgent/config_error` notifications, one per file in `.kiro/agents/prompts/`. One of them, with the scratch folder shortened to `<scratch>`:
+
+```json
+{"jsonrpc":"2.0","method":"_kiro/customAgent/config_error","params":{"sessionId":"sess_61be341f-fc6a-478b-958b-c30648e671f3","path":"<scratch>/repo/.kiro/agents/prompts/inspector-interfaces.md","reasonCode":"invalid_config","error":"AgentFileFormatError: No front matter found"}}
+```
+
+The [custom agents](https://kiro.dev/docs/custom-agents/) page says agent files are `.kiro/agents/[name].json` or `.kiro/agents/[name].md` and that nested folders are read too, and the [configuration reference](https://kiro.dev/docs/custom-agents/configuration-reference/) says a Markdown agent file keeps its config in YAML front matter. The prompts have no front matter, so Kiro reported each one. The fix moved them with `git mv` to `.kiro/agent-prompts/<name>.md` and set each agent's `prompt` to `file://../agent-prompts/<name>.md`. The configuration reference resolves relative `file://` prompts "relative to the agent configuration file's directory" and gives `"file://../shared/prompt.md"` as "prompt.md in a parent directory". `.kiro/prompts/` was not used, because the [manage prompts](https://kiro.dev/docs/cli/chat/manage-prompts/) page makes it the folder for saved slash-command prompts. No other agent field changed. Reasons in `.kiro/specs/role-agents/design.md`, "Prompt folder".
+
+The validator after the move, from the repo root:
+
+```text
+$ kiro-cli agent validate --path .kiro/agents/moderator.json
+exit 0
+$ kiro-cli agent validate --path .kiro/agents/reader.json
+exit 0
+$ kiro-cli agent validate --path .kiro/agents/inspector-logic.json
+exit 0
+$ kiro-cli agent validate --path .kiro/agents/inspector-interfaces.json
+exit 0
+$ kiro-cli agent validate --path .kiro/agents/scribe.json
+exit 0
+```
+
+Each run printed nothing. To check that the validator really resolves `../` from the agent file's folder, a probe in a fresh `mktemp -d` folder held `.kiro/agents/scribe.json` and `.kiro/agent-prompts/scribe.md` (copies) plus `.kiro/agents/missing.json`, a copy of `scribe.json` whose `prompt` is `file://../agent-prompts/does-not-exist.md`:
+
+```text
+$ kiro-cli agent validate --path .kiro/agents/scribe.json          (cwd: the temp folder)
+exit 0
+$ kiro-cli agent validate --path .kiro/agents/missing.json         (cwd: the temp folder)
+Error: File URI not found: file://../agent-prompts/does-not-exist.md (resolved to .kiro/agent-prompts/does-not-exist.md)
+exit 1
+$ kiro-cli agent validate --path <temp>/.kiro/agents/scribe.json   (cwd: /)
+exit 0
+```
+
+So the validator resolves the prompt from the agent file's folder, not from the working directory, and fails when the file is missing. The temp folder was deleted afterwards. `kiro-cli agent list` from the repo root printed exactly the listing above (compared with `diff`, colour codes removed) and exited 0.
+
+Live check over ACP, in the FEAT-003 scratch repos. Both got the new `.kiro/agents/` and `.kiro/agent-prompts/` in place of their old `.kiro/agents/` copy (`diff -r` against this repo: no differences), committed inside each scratch repo only (`<scratch>/clean` at `1a84b92`; `<scratch>/repo` at `634cea8` on top of `c082d44`, with `src/calc.ts` still modified and `insp-0001` untouched). The scratch-only probe hooks were kept. A short session in `<scratch>/clean`:
+
+```text
+$ node scripts/acp-probe.mjs --cwd <scratch>/clean --transcript <scratch>/logs/f5-default.jsonl \
+    --timeout 200 --linger 8 'Reply with the single word READY. Do not call any tools.'
+[probe] session/new: sessionId=sess_f52e6518-fe08-4794-b1f4-d5d6306517a7
+[probe] modes: current=vibe available=["vibe","spec","quick-spec","bug-fix","plan","autonomous","semantic_reviewer","inspector-interfaces","inspector-logic","moderator","reader","scribe"]
+[probe] prompt 1/1: Reply with the single word READY. Do not call any tools.
+[probe] prompt 1 stopReason=end_turn
+[probe] agent said: READY
+[probe] kiro-cli pid 70504 exited (code 143, signal null)
+[probe] done, exit 0
+```
+
+`config_error` notifications per transcript (`grep -c 'customAgent/config_error'`): 5 in each pass A transcript, 0 in `f5-default.jsonl`. The Kiro session log (`~/.kiro/logs/20261116T171132501-70506/kiro.log`) has no line mentioning `customAgent`, `AgentFileFormatError` or `File URI`. The five role agents are still modes.
+
+A second session started in moderator mode, to show that the moved prompt file loads:
+
+```text
+$ node scripts/acp-probe.mjs --cwd <scratch>/clean --transcript <scratch>/logs/f5-moderator.jsonl \
+    --mode moderator --mode-via auto --timeout 240 --linger 8 \
+    'Do not call any tools. From your own agent instructions (the prompt in your agent configuration, not steering files), quote word for word the first Markdown heading line, then quote word for word the sentence that says which role value you pass on fagan tool calls. Reply with just those two quoted lines.'
+[probe] session/new: sessionId=sess_b4402f17-1198-47b9-8296-5504cdaa723f
+[probe] modes: current=moderator available=["vibe","spec","quick-spec","bug-fix","plan","autonomous","semantic_reviewer","inspector-interfaces","inspector-logic","moderator","reader","scribe"]
+[probe] mode moderator via _meta.kiro.modeId: current=moderator
+[probe] prompt 1 stopReason=end_turn
+[probe] agent said: "# Moderator"
+
+"Pass `"role": "moderator"` on every fagan tool call that takes a `role`."
+[probe] kiro-cli pid 77678 exited (code 143, signal null)
+[probe] done, exit 0
+```
+
+Both quoted lines match lines 1 and 7 of `.kiro/agent-prompts/moderator.md`. In the scratch repo that sentence appears only in `.kiro/agent-prompts/moderator.md` (the scratch repo has no `.kiro/steering/`, `~/.kiro/steering` does not exist, and no file in `~/.kiro/agents` contains it), so the answer came from the prompt file at its new path. The transcript has 0 `config_error` notifications, no tool call and no permission request. For E7 this shows one thing only: `_meta.kiro.modeId` on `session/new` selects a custom agent (Kiro reported `moderator` as the current mode, so the probe sent no `session/set_mode`). Starting sub-agents and nesting are still open for E7.
+
 ## Step 3 live experiments: setup
 
 Run on 2026-11-16 with `kiro-cli 3.3.0` on macOS. Pages read first: [Migrate an ACP client to CLI V3](https://kiro.dev/docs/cli/v3/acp-migration.md), [ACP](https://kiro.dev/docs/cli/acp.md), [Agent Client Protocol (Kiro)](https://kiro.dev/docs/acp.md), and the ACP spec pages [initialization](https://agentclientprotocol.com/protocol/initialization), [session setup](https://agentclientprotocol.com/protocol/session-setup), [prompt turn](https://agentclientprotocol.com/protocol/prompt-turn), [tool calls](https://agentclientprotocol.com/protocol/tool-calls) and [session modes](https://agentclientprotocol.com/protocol/session-modes).
@@ -225,7 +299,7 @@ Run on 2026-11-16 with `kiro-cli 3.3.0` on macOS. Pages read first: [Migrate an 
 - Scratch repo: a folder from `mktemp -d -t fagan-acp` (here `<scratch>`, under `$TMPDIR`), never inside this repo. `<scratch>/repo` is a `git init` repo with one commit holding `README.md`, `src/calc.ts`, `.fagan/config.json` (copied from this repo with `build` and `test` set to `["node","-e","0"]` and `suggestThresholdLoc` 5), `.kiro/agents/` (copied), `.kiro/settings/mcp.json` (server `fagan` with the absolute path of this repo's `packages/fagan-mcp/dist/cli.js`) and `.kiro/hooks/` (copied, with `node scripts/fagan-hook.mjs` rewritten to the absolute path of this repo's launcher). One extra scratch-only hook file, `.kiro/hooks/zz-probe.json`, has `Stop`, `PreToolUse` (matcher `*`) and `PostToolUse` (matcher `*`) hooks that run `node <scratch>/probe-hook.mjs <trigger>`, which saves STDIN and its own cwd to a numbered file in `<scratch>/probe-log/` and exits 0. Probe logs live outside the repo so they do not change its diff.
 - Workspace trust: no run in this step was asked to trust the folder. Over ACP, `session/new` loaded the five workspace agents (they are listed as modes), started the workspace MCP server `fagan` (`_kiro/mcp/status` shows `"origin":"workspace"`, `"standing":{"kind":"active"}`, then `"status":"connected"` with the nine tools), and, once hooks were enabled (E1), loaded the workspace hooks. `git status` ran without a permission request, which matches the documented default allow list for read-only git commands ([permissions](https://kiro.dev/docs/permissions.md#default-behavior)); the permissions page says an untrusted workspace asks before every shell command, so the folder was not treated as untrusted. No trust record was written: `~/.kiro/workspace-roots/` still does not exist.
 - Modes advertised by `session/new` in the scratch repo: `vibe` (current), `spec`, `quick-spec`, `bug-fix`, `plan`, `autonomous`, `semantic_reviewer`, `inspector-interfaces`, `inspector-logic`, `moderator`, `reader`, `scribe`. The same list is the `mode` config option. Other config options: `memoryReflection` (off), `autopilot` (on), `contentCollection` (enabled). `agentCapabilities._meta.kiro.extensionMethods` has 44 methods and no `_kiro/hooks/list`; the hook list arrives as a `_kiro/hooks/didChange` notification instead.
-- Also seen in every session: Kiro reads `.kiro/agents/prompts/*.md` as agent files and sends one `_kiro/customAgent/config_error` notification per prompt file (`"reasonCode":"invalid_config","error":"AgentFileFormatError: No front matter found"`). The five JSON agents still load. The prompts folder sits under `.kiro/agents/` because the agent files point at `file://./prompts/<name>.md`; whether to move it is open (role-agents design.md).
+- Also seen in every pass A session: Kiro reads `.kiro/agents/prompts/*.md` as agent files and sends one `_kiro/customAgent/config_error` notification per prompt file (`"reasonCode":"invalid_config","error":"AgentFileFormatError: No front matter found"`). The five JSON agents still load. Fixed after pass A (FEAT-005): the prompts moved to `.kiro/agent-prompts/`, and a session after the move got no `config_error` (E11, "Follow-up: prompts moved out of .kiro/agents/").
 
 ## E1: workspace hooks over ACP (step 3)
 

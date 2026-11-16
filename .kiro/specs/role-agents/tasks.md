@@ -23,9 +23,10 @@ Tasks 1 to 8 are the spec, agents, hooks, launcher and config tests (step 3, FEA
   - _Requirements: RA-R1.1, RA-R1.2, RA-R1.3, RA-R2.1 to RA-R2.8, RA-R3.1 to RA-R3.7, RA-R5.2, RA-R5.3, RA-R8.1_
 
 - [x] 4. Prompts
-  - [x] 4.1 `.kiro/agents/prompts/<name>.md` for the five roles, each stating its role value, phase rules and honesty rules
+  - [x] 4.1 `.kiro/agent-prompts/<name>.md` for the five roles, each stating its role value, phase rules and honesty rules
   - [x] 4.2 The DEFECT line format in both inspector prompts and the scribe prompt, with fagan-mcp's types, classes and severities
-  - _Requirements: RA-R4.1 to RA-R4.8, RA-R5.1_
+  - [x] 4.3 Move the prompts from `.kiro/agents/prompts/` to `.kiro/agent-prompts/` with `prompt` set to `file://../agent-prompts/<name>.md`, because Kiro read the old prompt files as agent files and sent a `config_error` for each (FEAT-005, design.md "Prompt folder"); `kiro-config.test.ts` checks that `.kiro/agents/` has no `.md` file at any depth
+  - _Requirements: RA-R4.1 to RA-R4.8, RA-R5.1, RA-R5.4_
 
 - [x] 5. Hooks
   - [x] 5.1 `.kiro/hooks/suggest-inspection.json` (`Stop`, timeout 30)

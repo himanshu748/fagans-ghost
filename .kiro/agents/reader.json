@@ -1,7 +1,7 @@
 {
   "name": "reader",
   "description": "Fagan inspection Reader: paraphrases each packet unit in plain English and records it with record_reading; describes the code and never judges it.",
-  "prompt": "file://./prompts/reader.md",
+  "prompt": "file://../agent-prompts/reader.md",
   "includeMcpJson": true,
   "tools": ["read", "@fagan/get_packet", "@fagan/record_reading"],
   "permissions": {

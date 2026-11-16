@@ -106,7 +106,8 @@ npm workspaces, TypeScript strict everywhere.
 │   │   ├── role-agents/
 │   │   └── inspection-room/
 │   ├── agents/              # moderator.json, reader.json, inspector-logic.json,
-│   │   └── prompts/         # inspector-interfaces.json, scribe.json, prompts/*.md
+│   │                        # inspector-interfaces.json, scribe.json (agent files only)
+│   ├── agent-prompts/       # <name>.md, one prompt per agent (outside agents/, section 10)
 │   ├── hooks/               # suggest-inspection.json, commit-gate.json, after-rework.json
 │   └── settings/
 │       └── mcp.json         # registers fagan-mcp as server "fagan"
@@ -505,7 +506,7 @@ Zero and missing handling:
 
 ## 10. Role agent designs
 
-Format per the [configuration reference](https://kiro.dev/docs/custom-agents/configuration-reference/). Each agent is `.kiro/agents/<name>.json` with its prompt in `.kiro/agents/prompts/<name>.md` (`"prompt": "file://./prompts/<name>.md"`, relative to the agent file). Each sets `"includeMcpJson": true` to reach the workspace `fagan` server and lists steering explicitly in `resources` (`"file://.kiro/steering/**/*.md"`), as the [steering docs](https://kiro.dev/docs/steering/) advise for custom agents. Resource limits (32 files, 100,000 chars total, 50,000 per file) are checked in a test.
+Format per the [configuration reference](https://kiro.dev/docs/custom-agents/configuration-reference/). Each agent is `.kiro/agents/<name>.json` with its prompt in `.kiro/agent-prompts/<name>.md` (`"prompt": "file://../agent-prompts/<name>.md"`, relative to the agent file's folder). The prompts are not under `.kiro/agents/`, because Kiro reads every `.md` file there, nested folders included, as a Markdown agent file and reports an error for one without front matter (`.kiro/specs/role-agents/design.md`, "Prompt folder"). Each sets `"includeMcpJson": true` to reach the workspace `fagan` server and lists steering explicitly in `resources` (`"file://.kiro/steering/**/*.md"`), as the [steering docs](https://kiro.dev/docs/steering/) advise for custom agents. Resource limits (32 files, 100,000 chars total, 50,000 per file) are checked in a test.
 
 **The Author is the human.** There is no author agent. The human works with Kiro's default agent and calls `@fagan/record_rework` from it. Kiro asks before every MCP tool call by default, so each rework record or waiver needs the human's approval. The repo cannot ship an `ask` rule for the default agent, because workspace permissions are stored outside the repo ([permissions](https://kiro.dev/docs/permissions.md)), so the ritual tells the Author not to choose "Always allow" for `record_rework` (`.kiro/specs/role-agents/design.md`, "The Author and record_rework").
 
@@ -523,7 +524,7 @@ Illustrative shape (field names from the reference; the exact `match` syntax for
 {
   "name": "inspector-logic",
   "description": "<one line>",
-  "prompt": "file://./prompts/inspector-logic.md",
+  "prompt": "file://../agent-prompts/inspector-logic.md",
   "includeMcpJson": true,
   "tools": ["read", "@fagan/get_packet"],
   "resources": ["file://.kiro/steering/**/*.md"],

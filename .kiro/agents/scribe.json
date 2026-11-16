@@ -1,7 +1,7 @@
 {
   "name": "scribe",
   "description": "Fagan inspection Scribe: the only role that calls log_defect; logs exactly the DEFECT lines the inspectors raised, with raised_by, and never adds its own.",
-  "prompt": "file://./prompts/scribe.md",
+  "prompt": "file://../agent-prompts/scribe.md",
   "includeMcpJson": true,
   "tools": ["@fagan/get_packet", "@fagan/log_defect"],
   "permissions": {

@@ -1,7 +1,7 @@
 {
   "name": "moderator",
   "description": "Fagan inspection Moderator: opens an inspection with fagan-mcp, runs the phases in order, delegates to the reader, inspectors and scribe, and never logs defects or records rework.",
-  "prompt": "file://./prompts/moderator.md",
+  "prompt": "file://../agent-prompts/moderator.md",
   "includeMcpJson": true,
   "tools": [
     "read",

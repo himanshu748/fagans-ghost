@@ -6,7 +6,7 @@ Requirements: #[[file:.kiro/specs/role-agents/requirements.md]]. Plan: PLAN.md s
 
 This spec covers the Kiro side of Fagan's Ghost:
 
-- Five custom agents in `.kiro/agents/<name>.json`, with prompts in `.kiro/agents/prompts/<name>.md`.
+- Five custom agents in `.kiro/agents/<name>.json`, with prompts in `.kiro/agent-prompts/<name>.md` (section "Prompt folder").
 - Three hooks in `.kiro/hooks/`.
 - The hook launcher `scripts/fagan-hook.mjs`.
 - Tests that check this config against `fagan-mcp`: `packages/fagan-mcp/test/kiro-config.test.ts`, `hook-launcher.test.ts` and `hook-launcher.property.test.ts`.
@@ -19,9 +19,9 @@ Every format below was read on [kiro.dev/docs](https://kiro.dev/docs) on 2026-11
 
 | Page | What it settled |
 | --- | --- |
-| [Custom agents](https://kiro.dev/docs/custom-agents/) | Workspace agents in `.kiro/agents/` load only if the workspace is trusted; CLI 2.x profiles that use `allowedTools` or `toolsSettings` without a `permissions` block must be converted before CLI V3 loads them |
+| [Custom agents](https://kiro.dev/docs/custom-agents/) | Workspace agents in `.kiro/agents/` load only if the workspace is trusted; agent files are `.kiro/agents/[name].json` or `.kiro/agents/[name].md`, and nested folders are read too, with the path relative to `.kiro/agents/` as the agent name; CLI 2.x profiles that use `allowedTools` or `toolsSettings` without a `permissions` block must be converted before CLI V3 loads them |
 | [Slash commands](https://kiro.dev/docs/reference/slash-commands.md) | `kiro-cli chat --agent <name>` and `/agent swap <name>` switch agents |
-| [Configuration reference](https://kiro.dev/docs/custom-agents/configuration-reference/) | Agent fields (`name`, `description`, `prompt`, `tools`, `permissions`, `resources`, `includeMcpJson`, `welcomeMessage`, `model`); `prompt` as `file://./prompts/<name>.md`, relative to the agent file; tool selectors; rule fields `capability`, `match`, `effect`, `exclude`; resource limits (32 `file://` files, 100,000 characters in total, 50,000 per file, files over 1 MiB skipped); default-resource inheritance and the `chat.disableInheritingDefaultResources` setting; a sub-agent with its own `file://` resources loads those instead of the parent's; MCP server `timeout` (handshake, default 60000 ms) and `requestTimeout` (per call, default 120000 ms) |
+| [Configuration reference](https://kiro.dev/docs/custom-agents/configuration-reference/) | Agent fields (`name`, `description`, `prompt`, `tools`, `permissions`, `resources`, `includeMcpJson`, `welcomeMessage`, `model`); `prompt` as `file://../agent-prompts/<name>.md`, resolved relative to the agent file's folder (the page's example `file://../shared/prompt.md` is "prompt.md in a parent directory"); a Markdown agent file has YAML front matter for the config and the body as the prompt; tool selectors; rule fields `capability`, `match`, `effect`, `exclude`; resource limits (32 `file://` files, 100,000 characters in total, 50,000 per file, files over 1 MiB skipped); default-resource inheritance and the `chat.disableInheritingDefaultResources` setting; a sub-agent with its own `file://` resources loads those instead of the parent's; MCP server `timeout` (handshake, default 60000 ms) and `requestTimeout` (per call, default 120000 ms) |
 | [Sub-agents](https://kiro.dev/docs/custom-agents/subagents.md) | `subagent/<name>` entries limit which agents can be started in CLI V3; never `@builtin` or `*`, which include `invoke_sub_agent`; a `subagent` allow rule only skips the start prompt; every sub-agent tool call is checked against the parent session policy and the sub-agent's own rules; allow rules for sub-agent calls go in the parent agent's `permissions.rules`; each delegated agent has its own context window; a headless run denies sub-agent prompts |
 | [Permissions](https://kiro.dev/docs/permissions.md) | Capability and effect names; deny > ask > allow > evaluate in every scope; a rule without `match` (example `capability: fs_read`, `effect: allow`); MCP patterns are `server/tool` and support only `*`; workspace permissions are stored outside the repo ("A cloned repo cannot inject permission rules") |
 | [Built-in tools](https://kiro.dev/docs/tools.md) | The `read` tag (read_file, list_directory, file_search, grep_search, code, introspect), `write`, `shell` (execute_bash or execute_pwsh), `web` and `subagent` tags; `invoke_sub_agent` has no tag |
@@ -29,6 +29,7 @@ Every format below was read on [kiro.dev/docs](https://kiro.dev/docs) on 2026-11
 | [Steering](https://kiro.dev/docs/steering/) | "When using custom agents, steering files are not automatically included. You must explicitly add them to the agent's resources configuration" |
 | [MCP configuration](https://kiro.dev/docs/mcp/configuration/) | `.kiro/settings/mcp.json` format (unchanged in this spec) |
 | [Specs](https://kiro.dev/docs/specs/), [feature specs](https://kiro.dev/docs/specs/feature-specs/) | Spec layout and EARS form |
+| [Manage prompts](https://kiro.dev/docs/cli/chat/manage-prompts/) | `/prompts create` saves local prompts to `.kiro/prompts/`, and V3 offers them as slash commands, so the agent prompts do not go there (section "Prompt folder") |
 
 The steering page and the configuration reference disagree on whether custom agents inherit workspace steering. Every agent lists the steering it needs in `resources`, which works under both readings (`.kiro/steering/kiro-config.md`).
 
@@ -51,7 +52,7 @@ The per-agent tool lists match PLAN.md section 10.
 {
   "name": "moderator",
   "description": "Fagan inspection Moderator: opens an inspection with fagan-mcp, runs the phases in order, delegates to the reader, inspectors and scribe, and never logs defects or records rework.",
-  "prompt": "file://./prompts/moderator.md",
+  "prompt": "file://../agent-prompts/moderator.md",
   "includeMcpJson": true,
   "tools": [
     "read",
@@ -101,7 +102,7 @@ The per-agent tool lists match PLAN.md section 10.
 {
   "name": "reader",
   "description": "Fagan inspection Reader: paraphrases each packet unit in plain English and records it with record_reading; describes the code and never judges it.",
-  "prompt": "file://./prompts/reader.md",
+  "prompt": "file://../agent-prompts/reader.md",
   "includeMcpJson": true,
   "tools": ["read", "@fagan/get_packet", "@fagan/record_reading"],
   "permissions": {
@@ -136,7 +137,7 @@ The per-agent tool lists match PLAN.md section 10.
 {
   "name": "inspector-logic",
   "description": "Fagan inspection logic Inspector: read-only; prepares with get_packet and raises logic and data defects as DEFECT lines in its reply for the scribe to log.",
-  "prompt": "file://./prompts/inspector-logic.md",
+  "prompt": "file://../agent-prompts/inspector-logic.md",
   "includeMcpJson": true,
   "tools": ["read", "@fagan/get_packet"],
   "permissions": {
@@ -163,7 +164,7 @@ The per-agent tool lists match PLAN.md section 10.
 {
   "name": "inspector-interfaces",
   "description": "Fagan inspection interfaces Inspector: read-only; prepares with get_packet and raises interface and documentation defects as DEFECT lines in its reply for the scribe to log.",
-  "prompt": "file://./prompts/inspector-interfaces.md",
+  "prompt": "file://../agent-prompts/inspector-interfaces.md",
   "includeMcpJson": true,
   "tools": ["read", "@fagan/get_packet"],
   "permissions": {
@@ -199,7 +200,7 @@ The per-agent tool lists match PLAN.md section 10.
 {
   "name": "scribe",
   "description": "Fagan inspection Scribe: the only role that calls log_defect; logs exactly the DEFECT lines the inspectors raised, with raised_by, and never adds its own.",
-  "prompt": "file://./prompts/scribe.md",
+  "prompt": "file://../agent-prompts/scribe.md",
   "includeMcpJson": true,
   "tools": ["@fagan/get_packet", "@fagan/log_defect"],
   "permissions": {
@@ -259,9 +260,19 @@ Each agent lists its steering as separate `file://` entries instead of the `file
 
 `kiro-config.test.ts` expands each entry from the workspace root and checks the limits from the configuration reference: at most 32 files, each at most 1 MiB and 50,000 characters, at most 100,000 characters in total (RA-R5.2).
 
+## Prompt folder
+
+The prompts live in `.kiro/agent-prompts/<name>.md`, a sibling of `.kiro/agents/`, and each agent points at its prompt with `"prompt": "file://../agent-prompts/<name>.md"` (RA-R1.3, RA-R5.1).
+
+- Why not `.kiro/agents/prompts/`: the [custom agents](https://kiro.dev/docs/custom-agents/) page says agent files are `.kiro/agents/[name].json` or `.kiro/agents/[name].md` and that nested folders are read too, with the relative path as the agent name. FEAT-003 pass A saw kiro-cli 3.3.0 do exactly that: every ACP session got one `_kiro/customAgent/config_error` (`AgentFileFormatError: No front matter found`) for each prompt file in `.kiro/agents/prompts/`, because a Markdown agent file must start with YAML front matter ([configuration reference](https://kiro.dev/docs/custom-agents/configuration-reference/)). The five JSON agents still loaded.
+- Why the `../` form: the configuration reference resolves a relative `file://` prompt "relative to the agent configuration file's directory" and gives `"file://../shared/prompt.md"` as "prompt.md in a parent directory". `kiro-cli agent validate` resolves it the same way: a probe copy with `file://../agent-prompts/does-not-exist.md` failed with "resolved to .kiro/agent-prompts/does-not-exist.md" (docs/experiments.md E11).
+- Why not `.kiro/prompts/`: the [manage prompts](https://kiro.dev/docs/cli/chat/manage-prompts/) page says `/prompts create` saves local prompts to `.kiro/prompts/`, and CLI V3 lists workspace prompts as slash commands, so the role prompts would show up as `/moderator` and so on. No kiro.dev page read for this spec mentions `.kiro/agent-prompts/`, and the docs index ([llms.txt](https://kiro.dev/llms.txt)) has no entry for it.
+- Why not Markdown agents (front matter plus the prompt as the body): that would merge each prompt into its agent file and change every agent's format, which the config tests and E11 checked as JSON. The move keeps every other agent field unchanged.
+- Guard: `kiro-config.test.ts` fails if `.kiro/agents/` holds a `.md` file at any depth or a `.json` file other than the five agents (RA-R5.4). After the move, a live ACP session got no `config_error` and still listed the five role agents as modes, and the moderator, started in moderator mode, quoted the first heading and the role sentence of `.kiro/agent-prompts/moderator.md` (docs/experiments.md E11, follow-up).
+
 ## Prompts and the DEFECT line
 
-Each prompt (`.kiro/agents/prompts/<name>.md`) states the role value as `"role": "<name>"` (RA-R4.5), the phase rules for that role, and the honesty rules: never invent defects, readings, metrics or results; on a tool error, report the code and message and stop (RA-R4.8). No prompt contains an em dash.
+Each prompt (`.kiro/agent-prompts/<name>.md`) states the role value as `"role": "<name>"` (RA-R4.5), the phase rules for that role, and the honesty rules: never invent defects, readings, metrics or results; on a tool error, report the code and message and stop (RA-R4.8). No prompt contains an em dash.
 
 Inspectors raise defects as one line each. The moderator copies the lines to the scribe without changing them, and the scribe maps each field to one `log_defect` argument (RA-R4.7):
 
@@ -436,7 +447,7 @@ Results from FEAT-003 pass A (2026-11-16, kiro-cli 3.3.0, `docs/experiments.md` 
 - E3: exit 2 blocked a real `git commit --allow-empty` over ACP with an open major; the agent received the gate's message, while the ACP client got a `failed` `tool_call_update` with no content. No permission prompt appeared for the blocked commit.
 - E16: `Stop` has only `session_id`, `hook_event_name`, `cwd`; `PostToolUse` is the `PreToolUse` payload plus `tool_response`. The scripts' `cwd`-only rule holds.
 - Workspace trust over ACP: no trust prompt or trust request; the scratch repo's agents, MCP server and hooks loaded, and `~/.kiro/workspace-roots/` was not created.
-- Every session sends one `_kiro/customAgent/config_error` per file in `.kiro/agents/prompts/` (`AgentFileFormatError: No front matter found`): Kiro also reads `.md` files under `.kiro/agents/` as agent files. The five JSON agents still load. Moving the prompts out of `.kiro/agents/` would silence it; not changed yet.
+- Every session sent one `_kiro/customAgent/config_error` per file in `.kiro/agents/prompts/` (`AgentFileFormatError: No front matter found`): Kiro also reads `.md` files under `.kiro/agents/` as agent files. The five JSON agents still loaded. Fixed in FEAT-005 by moving the prompts to `.kiro/agent-prompts/` (section "Prompt folder"); a session after the move got no `config_error`.
 
 Known open risks for FEAT-003 and FEAT-004:
 
@@ -450,10 +461,11 @@ Known open risks for FEAT-003 and FEAT-004:
 - The moderator has `mcp` allow rules for its sub-agents' tools (section "Permission evaluation and E8").
 - The default agent gets no `ask` rule from the repo, because the repo cannot ship one (section "The Author and record_rework"). PLAN.md section 10 now says so.
 - Whole-capability deny rules have no `match`, where PLAN.md section 10's illustration used `match: ["**"]` and `["*"]`. The permissions page shows a rule without `match` (`capability: fs_read`, `effect: allow`), and `**` is not supported in shell patterns.
+- Prompts live in `.kiro/agent-prompts/`, not `.kiro/agents/prompts/` (section "Prompt folder"). PLAN.md sections 3 and 10 now say so.
 
 ## Testing strategy
 
-- `packages/fagan-mcp/test/kiro-config.test.ts`: parses every agent and hook file with strict schemas, checks tool scopes against `ALLOWED_ROLES`, permission rules, prompt paths, resource limits and steering, hook triggers, matchers, commands and timeouts, and runs `kiro-cli agent validate` on every agent when `kiro-cli` is on PATH (skipped in CI, RA-R9.3).
+- `packages/fagan-mcp/test/kiro-config.test.ts`: parses every agent and hook file with strict schemas, checks tool scopes against `ALLOWED_ROLES`, permission rules, prompt paths, that `.kiro/agents/` holds only the five agent files and no `.md` at any depth (RA-R5.4), resource limits and steering, hook triggers, matchers, commands and timeouts, and runs `kiro-cli agent validate` on every agent when `kiro-cli` is on PATH (skipped in CI, RA-R9.3).
 - `packages/fagan-mcp/test/hook-launcher.test.ts`: fallback exit codes and messages on a copy of the launcher in a temp folder without `dist`, and forwarding of arguments, stdin and exit codes to the built CLI in a temp repo from `test/fixture.ts` (RA-R9.4). It never runs against this repo's `.fagan` store.
 - `packages/fagan-mcp/test/hook-launcher.property.test.ts`: the fallback classifier property below. The generators are shared with the gate property P7 through `test/gate-arbitraries.ts`.
 - `packages/fagan-mcp/test/acp-probe.test.ts`: the experiment client's launch arguments, transcript redaction and permission choices (RA-R10), using the request shapes from the [ACP migration guide](https://kiro.dev/docs/cli/v3/acp-migration.md).

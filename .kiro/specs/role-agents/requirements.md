@@ -27,7 +27,7 @@ Glossary:
 
 1. **RA-R1.1** WHEN Kiro loads custom agents from `.kiro/agents/` THE SYSTEM SHALL provide exactly five agent files, `moderator.json`, `reader.json`, `inspector-logic.json`, `inspector-interfaces.json` and `scribe.json`, and no agent for the Author.
 2. **RA-R1.2** WHEN an agent file is read THE SYSTEM SHALL have its `name` equal to the file name without `.json`, and that name SHALL be a role value `fagan-mcp` accepts.
-3. **RA-R1.3** WHEN an agent file is read THE SYSTEM SHALL have exactly the fields `name`, `description`, `prompt`, `includeMcpJson`, `tools`, `permissions`, `resources` and `welcomeMessage`, where `description` is one line that starts with `Fagan inspection ` and names the role (so automatic sub-agent selection can pick it), `prompt` is `file://./prompts/<name>.md` and `includeMcpJson` is `true`. No agent SHALL set `model`, so every agent uses the model Kiro runs.
+3. **RA-R1.3** WHEN an agent file is read THE SYSTEM SHALL have exactly the fields `name`, `description`, `prompt`, `includeMcpJson`, `tools`, `permissions`, `resources` and `welcomeMessage`, where `description` is one line that starts with `Fagan inspection ` and names the role (so automatic sub-agent selection can pick it), `prompt` is `file://../agent-prompts/<name>.md` and `includeMcpJson` is `true`. No agent SHALL set `model`, so every agent uses the model Kiro runs.
 4. **RA-R1.4** WHEN `kiro-cli agent validate --path .kiro/agents/<name>.json` runs from the repo root THE SYSTEM SHALL exit 0 for every agent file.
 
 ## Requirement 2: Tool scopes
@@ -72,9 +72,10 @@ Glossary:
 
 **User story:** As a developer, I want each agent to load its prompt and the steering it needs within Kiro's limits, so that the agents know the ritual and the project rules.
 
-1. **RA-R5.1** WHEN an agent's `prompt` is resolved relative to the agent file's folder THE SYSTEM SHALL find an existing file in `.kiro/agents/prompts/`.
+1. **RA-R5.1** WHEN an agent's `prompt` is resolved relative to the agent file's folder THE SYSTEM SHALL find an existing file named `<name>.md` in `.kiro/agent-prompts/`.
 2. **RA-R5.2** WHEN an agent's `file://` resources are expanded from the workspace root THE SYSTEM SHALL name at least one and at most 32 existing files, each at most 1 MiB and 50,000 characters, with at most 100,000 characters in total (the limits on the [configuration reference](https://kiro.dev/docs/custom-agents/configuration-reference/)).
 3. **RA-R5.3** WHEN an agent's `resources` are read THE SYSTEM SHALL list `file://.kiro/steering/product.md` and `file://.kiro/steering/inspection-ritual.md` for every agent, and also `file://.kiro/steering/tech.md` for the moderator and both inspectors, because the [steering page](https://kiro.dev/docs/steering/) says custom agents do not include steering automatically and a sub-agent that declares its own `file://` resources loads those instead of the parent's.
+4. **RA-R5.4** WHEN Kiro scans `.kiro/agents/` for agent files THE SYSTEM SHALL find no `.md` file at any depth and no `.json` file other than the five agent files, because Kiro reads `.json` and `.md` files under `.kiro/agents/`, nested folders included, as agents ([custom agents](https://kiro.dev/docs/custom-agents/)), and kiro-cli 3.3.0 sent one `_kiro/customAgent/config_error` per prompt file while the prompts were in `.kiro/agents/prompts/` (docs/experiments.md, "Step 3 live experiments: setup" and E11).
 
 ## Requirement 6: Hooks
 

@@ -1,13 +1,14 @@
-// Checks the committed Kiro config (.kiro/agents, .kiro/hooks) against the
-// role-agents spec (.kiro/specs/role-agents/requirements.md, RA-R9) and
-// against fagan-mcp's own tool roles. `kiro-cli agent validate` checks JSON
+// Checks the committed Kiro config (.kiro/agents, .kiro/agent-prompts,
+// .kiro/hooks) against the role-agents spec
+// (.kiro/specs/role-agents/requirements.md, RA-R9) and against fagan-mcp's
+// own tool roles. `kiro-cli agent validate` checks JSON
 // types and the prompt file only (docs/experiments.md E11), so the scopes,
 // rules, resources and hooks are checked here. Formats per
 // https://kiro.dev/docs/custom-agents/configuration-reference/ and
 // https://kiro.dev/docs/hooks/ (read on 2026-11-16).
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import picomatch from "picomatch/posix.js";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -17,6 +18,8 @@ import { TOOL_NAMES } from "../src/server/server.js";
 import { REPO_ROOT } from "./launcher.js";
 
 const AGENTS_DIR = join(REPO_ROOT, ".kiro", "agents");
+/** Prompts live outside .kiro/agents/, because Kiro reads every .md under it as an agent (RA-R5.4). */
+const PROMPTS_DIR = join(REPO_ROOT, ".kiro", "agent-prompts");
 const HOOKS_DIR = join(REPO_ROOT, ".kiro", "hooks");
 const AGENT_NAMES = ["inspector-interfaces", "inspector-logic", "moderator", "reader", "scribe"] as const;
 type AgentName = (typeof AGENT_NAMES)[number];
@@ -80,6 +83,20 @@ function jsonFiles(dir: string): string[] {
     .sort();
 }
 
+/** Every file under `dir` at any depth, relative to `dir`, with `/` separators. */
+function filesUnder(dir: string): string[] {
+  const out: string[] = [];
+  const walk = (d: string): void => {
+    for (const entry of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, entry.name);
+      if (entry.isDirectory()) walk(p);
+      else out.push(relative(dir, p).split(sep).join("/"));
+    }
+  };
+  walk(dir);
+  return out.sort();
+}
+
 const agents = new Map<AgentName, Agent>(
   jsonFiles(AGENTS_DIR).map((f) => [f.replace(/\.json$/, "") as AgentName, AgentSchema.parse(readJson(join(AGENTS_DIR, f)))]),
 );
@@ -122,11 +139,20 @@ describe("role agents (.kiro/agents)", () => {
     expect(agents.has("author" as AgentName)).toBe(false);
     for (const [name, a] of agents) {
       expect(a.name).toBe(name);
-      expect(a.prompt).toBe(`file://./prompts/${name}.md`);
+      expect(a.prompt).toBe(`file://../agent-prompts/${name}.md`);
       expect(a.description).not.toContain("\n");
       expect(a.description.startsWith("Fagan inspection ")).toBe(true);
       expect((ROLES as readonly string[]).includes(name)).toBe(true);
     }
+  });
+
+  it("RA-R1.1 RA-R5.4 .kiro/agents/ holds the five agent files and no Markdown file at any depth", () => {
+    // Kiro reads every .json and .md file under .kiro/agents/, nested folders
+    // included, as an agent (https://kiro.dev/docs/custom-agents/); a .md
+    // without front matter is reported as a config_error (docs/experiments.md E11).
+    const files = filesUnder(AGENTS_DIR);
+    expect(files.filter((f) => /\.md$/i.test(f))).toEqual([]);
+    expect(files.filter((f) => /\.json$/i.test(f))).toEqual(AGENT_NAMES.map((n) => `${n}.json`));
   });
 
   it("RA-R2.1 RA-R2.2 RA-R2.3 RA-R2.4 each agent lists exactly its tools", () => {
@@ -274,11 +300,11 @@ function expandResource(uri: string): string[] {
 }
 
 describe("agent prompts and resources", () => {
-  it("RA-R5.1 every prompt file exists next to its agent", () => {
+  it("RA-R5.1 every prompt file exists in .kiro/agent-prompts/, resolved from its agent's folder", () => {
     for (const [name, a] of agents) {
       const path = resolve(AGENTS_DIR, a.prompt.slice("file://".length));
       expect(existsSync(path), `${name}: ${path}`).toBe(true);
-      expect(dirname(path)).toBe(join(AGENTS_DIR, "prompts"));
+      expect(path).toBe(join(PROMPTS_DIR, `${name}.md`));
     }
   });
 
@@ -312,12 +338,12 @@ describe("agent prompts and resources", () => {
 
   it("RA-R4.5 RA-R4.7 each prompt names its own role value and uses fagan-mcp's types and severities", () => {
     for (const name of AGENT_NAMES) {
-      const text = readFileSync(join(AGENTS_DIR, "prompts", `${name}.md`), "utf8");
+      const text = readFileSync(join(PROMPTS_DIR, `${name}.md`), "utf8");
       expect(text, name).toContain(`"role": "${name}"`);
       expect(text, name).not.toContain("\u2014");
     }
     for (const n of ["inspector-logic", "inspector-interfaces", "scribe"] as const) {
-      const text = readFileSync(join(AGENTS_DIR, "prompts", `${n}.md`), "utf8");
+      const text = readFileSync(join(PROMPTS_DIR, `${n}.md`), "utf8");
       for (const word of ["logic", "interface", "data", "documentation", "other", "major", "minor", "missing", "wrong", "extra"]) {
         expect(text, `${n}: ${word}`).toContain(`\`${word}\``);
       }
