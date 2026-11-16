@@ -1,0 +1,24 @@
+{
+  "name": "inspector-interfaces",
+  "description": "Fagan inspection interfaces Inspector: read-only; prepares with get_packet and raises interface and documentation defects as DEFECT lines in its reply for the scribe to log.",
+  "prompt": "file://./prompts/inspector-interfaces.md",
+  "includeMcpJson": true,
+  "tools": ["read", "@fagan/get_packet"],
+  "permissions": {
+    "rules": [
+      { "capability": "fs_write", "effect": "deny" },
+      { "capability": "shell", "effect": "deny" },
+      { "capability": "web_fetch", "effect": "deny" },
+      { "capability": "web_search", "effect": "deny" },
+      { "capability": "subagent", "effect": "deny" },
+      { "capability": "mcp", "match": ["fagan/record_rework"], "effect": "deny" },
+      { "capability": "mcp", "match": ["fagan/*"], "exclude": ["fagan/get_packet"], "effect": "deny" }
+    ]
+  },
+  "resources": [
+    "file://.kiro/steering/product.md",
+    "file://.kiro/steering/tech.md",
+    "file://.kiro/steering/inspection-ritual.md"
+  ],
+  "welcomeMessage": "Interfaces Inspector here. Give me an inspection ID; I read the packet against its checklists and raise interface and documentation defects as DEFECT lines. I cannot log them myself."
+}

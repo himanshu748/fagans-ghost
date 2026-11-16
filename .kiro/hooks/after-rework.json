@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Fagan follow-up after rework",
+      "description": "After the Author's record_rework call, re-run the configured build and tests and the follow-up exit rule for the latest inspection in Rework or FollowUp, and print which majors still block. The timeout covers two commands at commandTimeoutMs 600000 each, plus 60 s.",
+      "trigger": "PostToolUse",
+      "matcher": "@fagan/record_rework",
+      "action": { "type": "command", "command": "node scripts/fagan-hook.mjs follow-up --latest" },
+      "timeout": 1260,
+      "enabled": true
+    }
+  ]
+}

@@ -507,7 +507,7 @@ Zero and missing handling:
 
 Format per the [configuration reference](https://kiro.dev/docs/custom-agents/configuration-reference/). Each agent is `.kiro/agents/<name>.json` with its prompt in `.kiro/agents/prompts/<name>.md` (`"prompt": "file://./prompts/<name>.md"`, relative to the agent file). Each sets `"includeMcpJson": true` to reach the workspace `fagan` server and lists steering explicitly in `resources` (`"file://.kiro/steering/**/*.md"`), as the [steering docs](https://kiro.dev/docs/steering/) advise for custom agents. Resource limits (32 files, 100,000 chars total, 50,000 per file) are checked in a test.
 
-**The Author is the human.** There is no author agent. The human works with Kiro's default agent, which gets `@fagan/record_rework` with effect `ask` so every rework or waiver needs the human's approval.
+**The Author is the human.** There is no author agent. The human works with Kiro's default agent and calls `@fagan/record_rework` from it. Kiro asks before every MCP tool call by default, so each rework record or waiver needs the human's approval. The repo cannot ship an `ask` rule for the default agent, because workspace permissions are stored outside the repo ([permissions](https://kiro.dev/docs/permissions.md)), so the ritual tells the Author not to choose "Always allow" for `record_rework` (`.kiro/specs/role-agents/design.md`, "The Author and record_rework").
 
 | Agent | `tools` | Permission rules (summary) | Role in the ritual |
 | --- | --- | --- | --- |

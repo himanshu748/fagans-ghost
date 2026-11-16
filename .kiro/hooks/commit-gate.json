@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Fagan commit gate",
+      "description": "Before a shell tool call, block any git commit (exit 2) while an inspection that is not Closed or Abandoned has an open major defect, one that is neither verified nor waived by the Author. Other commands pass with exit 0.",
+      "trigger": "PreToolUse",
+      "matcher": "shell",
+      "action": { "type": "command", "command": "node scripts/fagan-hook.mjs hook gate" },
+      "timeout": 30,
+      "enabled": true
+    }
+  ]
+}

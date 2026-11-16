@@ -14,7 +14,7 @@ Results of the experiments listed in PLAN.md section 2.4. Each row records what 
 | E8 | Does the scribe keep `log_defect` as a sub-agent of the moderator? | 3 | Not run yet | |
 | E9 | Command path resolution and server namespacing for a power's `mcp.json` | 5 | Not run yet | |
 | E10 | Can a power ship steering files or hooks? | 5 | Not run yet | |
-| E11 | Do all agent files pass `kiro-cli agent validate`? | 3 | Not run yet | |
+| E11 | Do all agent files pass `kiro-cli agent validate`? | 3 | Done | All five exit 0. The validator also accepted an unknown field, capability and effect; see below |
 | E12 | Units and default of the hook `timeout` field | 3 | Not run yet | |
 | E13 | Does `auto` steering inclusion trigger in CLI V3 for our description? | 2 | Not observed | See below |
 | E14 | Do `skill://` resources in agent files load power skills? | 5 | Not run yet | |
@@ -134,3 +134,85 @@ A second review on 2026-11-16, of the v1 fix pass (commit 647a96b), returned NEE
 4. No property checked the rework and follow-up totals. New property P8 in `metrics.property.test.ts` (`FM-R10.1 FM-R10.3 rework plus follow-up equals the time from meetingEnd to closedAt or abandonedAt`) generates time-ordered attempts, with and without defects, and checks the sum, non-negative values and which phase is `null`. Changing `at - since` to `at - start` in `reworkAndFollowupMs`, or dropping `entered.FollowUp = true`, makes it fail (counterexamples `[false,0,[1],"closed",0]` and `[true,0,[],"closed",0]`); both edits were reverted.
 
 The review also listed `no_newline_at_eof` in a `get_packet` result over stdio as untested. The full-lifecycle test in `contract.test.ts` now checks that every unit line returned in Preparation carries the field. All values are `false` there, because every fixture file ends in a newline; the `true` case is covered in-process by `packet.test.ts` (`FM-R4.7 keeps the no-newline-at-end-of-file marker in packet units and report.txt`).
+
+## E11: kiro-cli agent validate (step 3)
+
+Run on 2026-11-16 with `kiro-cli 3.3.0`, from the repo root, on the five agent files in `.kiro/agents/` ([configuration reference](https://kiro.dev/docs/custom-agents/configuration-reference/)). `kiro-cli agent validate --help` lists only `--path` and `--verbose`.
+
+```text
+$ kiro-cli agent validate --path .kiro/agents/moderator.json
+exit 0
+$ kiro-cli agent validate --path .kiro/agents/reader.json
+exit 0
+$ kiro-cli agent validate --path .kiro/agents/inspector-logic.json
+exit 0
+$ kiro-cli agent validate --path .kiro/agents/inspector-interfaces.json
+exit 0
+$ kiro-cli agent validate --path .kiro/agents/scribe.json
+exit 0
+```
+
+Each run printed nothing and exited 0, so there was nothing to fix. `kiro-cli agent list` from the repo root (colour codes removed):
+
+```text
+$ kiro-cli agent list
+Workspace: ~/code/fagans-ghost/.kiro/agents
+Global:    ~/.kiro/agents
+
+* kiro_default            (Built-in)    Default agent
+  inspector-interfaces    Workspace     (v3 format) Fagan inspection interfaces Inspector: read-only; prepares with
+                                         get_packet and raises interface and documentation defects as DEFECT lines in
+                                         its reply for the scribe to log.
+  inspector-logic         Workspace     (v3 format) Fagan inspection logic Inspector: read-only; prepares with
+                                         get_packet and raises logic and data defects as DEFECT lines in its reply for
+                                         the scribe to log.
+  kiro_help               (Built-in)    Help agent that answers questions about Kiro CLI features using documentation
+  kiro_planner            (Built-in)    Specialized planning agent that helps break down ideas into implementation plans
+  moderator               Workspace     (v3 format) Fagan inspection Moderator: opens an inspection with fagan-mcp, runs
+                                         the phases in order, delegates to the reader, inspectors and scribe, and never
+                                         logs defects or records rework.
+  reader                  Workspace     (v3 format) Fagan inspection Reader: paraphrases each packet unit in plain
+                                         English and records it with record_reading; describes the code and never judges
+                                         it.
+  scribe                  Workspace     (v3 format) Fagan inspection Scribe: the only role that calls log_defect; logs
+                                         exactly the DEFECT lines the inspectors raised, with raised_by, and never adds
+                                         its own.
+exit 0
+```
+
+All five role agents are found as workspace agents. Kiro labels them `(v3 format)`. `kiro-cli agent upgrade --help` describes a "universal format both engines load" and says it leaves "V3-only" agents untouched. Whether the label means the V2 engine would skip these files was not tested: T3 Code runs Kiro with `--agent-engine=v3`, and `agent upgrade` rewrites files in place, so it was not run on the repo.
+
+What the validator checks: a probe copied `scribe.json` and its prompt into a fresh folder from `mktemp -d` (outside the repo) and wrote six variants with a one-off `node -e` script. Each variant changes one thing in the copy:
+
+| File | Change |
+| --- | --- |
+| `control.json` | none |
+| `unknown-field.json` | adds `"notAField": true` |
+| `unknown-capability.json` | first rule's `capability` is `"not_a_capability"` |
+| `unknown-effect.json` | first rule's `effect` is `"maybe"` |
+| `tools-not-array.json` | `tools` is the string `"@fagan/log_defect"` |
+| `missing-prompt.json` | `prompt` is `file://./prompts/does-not-exist.md` |
+| `allowed-tools-v2.json` | adds the CLI 2.x field `"allowedTools": ["@fagan/log_defect"]` |
+
+Run from inside the temp folder:
+
+```text
+$ kiro-cli agent validate --path control.json
+exit 0
+$ kiro-cli agent validate --path unknown-field.json
+exit 0
+$ kiro-cli agent validate --path unknown-capability.json
+exit 0
+$ kiro-cli agent validate --path unknown-effect.json
+exit 0
+$ kiro-cli agent validate --path tools-not-array.json
+Error: Json supplied at tools-not-array.json is invalid: invalid type: string "@fagan/log_defect", expected a sequence at line 6 column 30
+exit 1
+$ kiro-cli agent validate --path missing-prompt.json
+Error: File URI not found: file://./prompts/does-not-exist.md (resolved to prompts/does-not-exist.md)
+exit 1
+$ kiro-cli agent validate --path allowed-tools-v2.json
+exit 0
+```
+
+The temp folder was deleted afterwards. Conclusion: the validator checks JSON types and that a `file://` prompt exists, and it accepts unknown fields, unknown capability names and unknown effects. A typo such as `"capability": "fs_wirte"` or `"effect": "dney"` would pass it, and whether Kiro then ignores that rule was not tested. So `packages/fagan-mcp/test/kiro-config.test.ts` parses the agent and hook files with strict schemas that list the documented fields, capabilities, effects and triggers (RA-R9.1), and checks the tool scopes and rules itself. The same test runs `kiro-cli agent validate` on every agent when `kiro-cli` is on PATH (RA-R1.4) and skips it otherwise, as in CI.
