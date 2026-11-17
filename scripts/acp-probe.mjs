@@ -36,7 +36,10 @@
 // Permission policy: each session/request_permission is matched against the
 // --allow patterns (* is the only wildcard; the whole key must match). The
 // keys are "@<server>/<tool>" from _meta.kiro.mcpTool.identity and
-// "<capability>:<resource>" from _meta.kiro.consent. On a match the probe
+// "<capability>:<resource>" from _meta.kiro.consent (both seen live for an
+// MCP call, docs/experiments.md E4), and "hook-confirm" for a Stop hook's
+// confirm prompt, whose toolCall.toolCallId starts with "hook-confirm-" and
+// whose options carry the hook's own ids (E5). On a match the probe
 // picks the option whose kind is allow_once; otherwise reject_once. It never
 // picks allow_always or reject_always, and it answers "cancelled" when no
 // such one-time option exists. Every decision is printed and logged.
@@ -86,6 +89,8 @@ export function permissionKeys(params) {
   if (typeof consent?.capability === "string") {
     keys.push(`${consent.capability}:${typeof consent.resource === "string" ? consent.resource : ""}`);
   }
+  const toolCallId = params?.toolCall?.toolCallId;
+  if (typeof toolCallId === "string" && toolCallId.startsWith("hook-confirm-")) keys.push("hook-confirm");
   return keys;
 }
 

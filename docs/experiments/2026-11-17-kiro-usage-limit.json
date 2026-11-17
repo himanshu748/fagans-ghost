@@ -1,0 +1,21 @@
+{
+  "t": "2026-11-17T04:49:30.660Z",
+  "dir": "in",
+  "msg": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "error": {
+      "code": -32000,
+      "message": "You've reached your monthly usage limit. Please return next month to continue building. (Request ID: 7650b800-2314-4bbc-91e8-26207870747e)",
+      "data": {
+        "errorType": "UsageLimitReachedError",
+        "retryErrorType": "CLIENT_ERROR",
+        "requestId": "7650b800-2314-4bbc-91e8-26207870747e",
+        "actions": [
+          "enableOverages",
+          "upgradePlan"
+        ]
+      }
+    }
+  }
+}

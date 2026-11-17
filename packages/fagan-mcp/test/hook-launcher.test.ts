@@ -16,7 +16,7 @@ import {
   recordReadingService,
   type ServiceContext,
 } from "../src/service/service.js";
-import { CLI, assertBuilt, fixtureRepo } from "./fixture.js";
+import { CLI, assertBuilt, fixtureRepo, fixtureConfig } from "./fixture.js";
 import { tempDir } from "./helpers.js";
 import { LAUNCHER, REPO_ROOT, loadLauncher, type Launcher } from "./launcher.js";
 
@@ -80,6 +80,13 @@ describe("hook launcher without a built CLI (fresh clone)", () => {
     }
   });
 
+  it("RA-R6.6 skips confirmation before the first build", () => {
+    const r = run(copy, dir.path, ["hook", "suggest-confirm"], "{}");
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout)).toEqual({ skip: true });
+    expect(r.stderr).toContain("npm run build");
+  });
+
   it("RA-R7.6 other commands fail with exit 1 instead of pretending to work", () => {
     const r = run(copy, dir.path, ["export", "insp-0001"]);
     expect(r.status).toBe(1);
@@ -137,7 +144,7 @@ describe("hook launcher with the built CLI", () => {
 
   /** A temp repo with insp-0001 in Rework and one open major, D001 (the cli.test.ts setup). */
   async function reworkRepo(): Promise<string> {
-    const repo = fixtureRepo();
+    const repo = fixtureRepo({ ...fixtureConfig, suggestThresholdLoc: 1 });
     repos.push(repo);
     const ctx: ServiceContext = { cwd: repo.path, clock: systemClock };
     await openInspection(ctx, { role: "moderator", title: "Add sub()", base: "HEAD", head: "WORKTREE", include_untracked: true, author_overview: null });
@@ -165,6 +172,38 @@ describe("hook launcher with the built CLI", () => {
     await closeMeetingService(ctx, { inspection_id: ID, role: "moderator", notes: null });
     return repo.path;
   }
+
+  it("RA-R6.6 shows a due suggestion as a question without opening an inspection", () => {
+    const repo = fixtureRepo({ ...fixtureConfig, suggestThresholdLoc: 1 });
+    repos.push(repo);
+    const input = JSON.stringify({ hook_event_name: "Stop", cwd: repo.path });
+    const before = run(LAUNCHER, repo.path, ["hook", "suggest"], input);
+    const r = run(LAUNCHER, repo.path, ["hook", "suggest-confirm"], input);
+    expect(r.status).toBe(0);
+    expect(before.stdout).toContain("changed lines");
+    expect(JSON.parse(r.stdout)).toEqual({ question: before.stdout.trim(), options: [{ id: "acknowledge", label: "Got it", run: true }] });
+    expect(run(LAUNCHER, repo.path, ["hook", "suggest"], input).stdout).toBe(before.stdout);
+  });
+
+  it("RA-R6.6 skips diffs below threshold and diffs covered by an inspection", async () => {
+    const small = fixtureRepo({ ...fixtureConfig, suggestThresholdLoc: 999 });
+    repos.push(small);
+    for (const root of [small.path, await reworkRepo()]) {
+      const r = run(LAUNCHER, root, ["hook", "suggest-confirm"], JSON.stringify({ cwd: root }));
+      expect(r.status).toBe(0);
+      expect(JSON.parse(r.stdout)).toEqual({ skip: true });
+    }
+  });
+
+  it("RA-R6.6 skips a failed diff check without printing a misleading question", () => {
+    const dir = tempDir("fagan-confirm-invalid-");
+    try {
+      const r = run(LAUNCHER, dir.path, ["hook", "suggest-confirm"], JSON.stringify({ cwd: dir.path }));
+      expect(r.status).toBe(0);
+      expect(JSON.parse(r.stdout)).toEqual({ skip: true });
+      expect(r.stderr).toContain("skipped");
+    } finally { dir.cleanup(); }
+  });
 
   it("RA-R7.1 forwards arguments, stdin and the exit code to the built CLI", async () => {
     const root = await reworkRepo();

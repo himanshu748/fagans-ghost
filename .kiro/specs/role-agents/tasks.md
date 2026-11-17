@@ -60,26 +60,26 @@ Tasks 1 to 8 are the spec, agents, hooks, launcher and config tests (step 3, FEA
   - [x] 10.2 With an open major, the gate blocks a real `git commit` attempted by the agent; record where stderr shows. Blocked over ACP, commit count unchanged; the agent received the message, the ACP client only a `failed` tool update
   - _Requirements: RA-R6.2, RA-R7.2_
 
-- [ ] 11. E4: after-rework matcher (FEAT-003)
-  - [ ] 11.1 Record whether matcher `@fagan/record_rework` fires for the V3 tool ID `mcp_fagan_record_rework`; apply the PLAN.md fallback if not
+- [x] 11. E4: after-rework matcher (FEAT-003)
+  - [x] 11.1 Record whether matcher `@fagan/record_rework` fires for the V3 tool ID `mcp_fagan_record_rework`; apply the PLAN.md fallback if not. It fires: a live `record_rework` call over ACP ran `follow-up --latest`, which closed the scratch inspection; no fallback, the hook file is unchanged. `cli.test.ts` pipes the recorded `PostToolUse` payload into `follow-up --latest`, and `acp-probe.test.ts` checks the recorded permission request
   - _Requirements: RA-R6.3, RA-R6.5_
 
-- [ ] 12. E5: `confirm` block on the Stop hook over ACP (FEAT-003)
-  - [ ] 12.1 Try it on a scratch copy of `suggest-inspection.json`; keep the plain suggestion if it does not work
+- [x] 12. E5: `confirm` block on the Stop hook over ACP (FEAT-003)
+  - [x] 12.1 Try it on a scratch copy of `suggest-inspection.json`; keep the plain suggestion if it does not work. It reaches the ACP client as a `session/request_permission` (`{"skip":true}` suppresses it), but choosing `run: false` started an extra agent turn with no task, so the original plain hook was kept. CLI V3 ignores its stdout. On 2026-11-17 the hook gained a dynamic confirmation question with one acknowledgment option; local regression tests cover due, below-threshold, covered, unbuilt and failed checks. Live verification of this exact variant remains separate (docs/experiments.md)
   - _Requirements: RA-R6.1, RA-R6.4_
 
-- [ ] 13. E7 and E8: agent switching and the scribe as a sub-agent (FEAT-003)
-  - [ ] 13.1 Record how the moderator is selected over ACP and whether it can start the four role agents
-  - [ ] 13.2 Record whether the scribe's `log_defect` call runs without a prompt under the moderator's allow rules
+- [x] 13. E7 and E8: agent switching and the scribe as a sub-agent (FEAT-003)
+  - [x] 13.1 Record how the moderator is selected over ACP and whether it can start the four role agents. `_meta.kiro.modeId: "moderator"` on `session/new` selects it; it started the `scribe` (hook `tool_name` `subagent_scribe`) without a prompt. Only the scribe was started live; the reader and inspectors are first started in FEAT-004. Depth tested: 1
+  - [x] 13.2 Record whether the scribe's `log_defect` call runs without a prompt under the moderator's allow rules. Yes, and a scratch control without the moderator's `fagan/log_defect` allow rule got a permission request for the same call
   - _Requirements: RA-R2.8, RA-R3.5, RA-R4.2_
 
-- [ ] 14. E12: hook timeout units (FEAT-003)
-  - [ ] 14.1 A probe hook that sleeps longer than its timeout shows the unit live
+- [x] 14. E12: hook timeout units (FEAT-003)
+  - [x] 14.1 A probe hook that sleeps longer than its timeout shows the unit live. Seconds: with `timeout` 2, a 5 s hook got SIGTERM about 2 s after the tool finished and a 0.3 s control finished; Kiro reported both as `completed`
   - _Requirements: RA-R6.4, RA-R6.5_
 
 - [ ] 15. First real inspection of this repo (FEAT-004)
-  - [ ] 15.1 Record the real `SIZE_LIMIT_EXCEEDED` result for the whole repo
-  - [ ] 15.2 Run insp-0001 on `647a96b..4b4c692` with the moderator and its four sub-agents, stopping at the Author's part (no agent records rework or waives)
+  - [x] 15.1 Record the real `SIZE_LIMIT_EXCEEDED` result for the whole repo (2026-11-17, Node SDK over real stdio MCP: 12,483 > 1,500; no inspection stored; receipt in docs/experiments/)
+  - [ ] 15.2 Blocked on 2026-11-17 by Kiro `UsageLimitReachedError` (docs/STEP3_RESUME.md). Run insp-0001 on `647a96b..4b4c692` with the moderator and its four sub-agents, stopping at the Author's part (no agent records rework or waives)
   - [ ] 15.3 Commit the real `.fagan/inspections/insp-0001/` record and a test that parses every committed `report.json`
   - _Requirements: RA-R4.1 to RA-R4.8, RA-R8.1_
 

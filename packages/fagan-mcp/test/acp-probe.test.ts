@@ -2,6 +2,7 @@
 // use (RA-R10). Only its pure parts run here; the live runs are recorded in
 // docs/experiments.md. The path is computed, so tsc does not resolve the .mjs
 // file (no allowJs); the module is typed by the interface below.
+import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -76,6 +77,29 @@ describe("scripts/acp-probe.mjs", () => {
     expect(decide(shell("git status"), ["git status"]).allowed).toBe(false);
     // A request with neither consent nor MCP identity has no key, so it is rejected.
     expect(decide(request({}), ["*"])).toMatchObject({ keys: [], allowed: false, kind: "reject_once" });
+  });
+
+  it("RA-R10.2 reads both keys from the permission request Kiro sent for record_rework (E4)", async () => {
+    const { decide } = await load();
+    const raw = readFileSync(new URL("./fixtures/acp/request-permission-record-rework.json", import.meta.url), "utf8");
+    const params = (JSON.parse(raw) as { params: unknown }).params;
+    expect(decide(params, ["@fagan/record_rework"])).toEqual({
+      keys: ["@fagan/record_rework", "mcp:fagan/record_rework"],
+      allowed: true,
+      kind: "allow_once",
+      outcome: { outcome: "selected", optionId: "accept" },
+    });
+    expect(decide(params, ["mcp:fagan/record_rework"]).outcome).toEqual({ outcome: "selected", optionId: "accept" });
+    expect(decide(params, ["@fagan/log_defect"])).toMatchObject({ allowed: false, kind: "reject_once", outcome: { optionId: "reject" } });
+  });
+
+  it("RA-R10.2 keys a Stop hook confirm prompt as hook-confirm and picks its run option only when allowed (E5)", async () => {
+    const { decide } = await load();
+    const raw = readFileSync(new URL("./fixtures/acp/request-permission-hook-confirm.json", import.meta.url), "utf8");
+    const params = (JSON.parse(raw) as { params: unknown }).params;
+    expect(decide(params, ["hook-confirm"])).toEqual({ keys: ["hook-confirm"], allowed: true, kind: "allow_once", outcome: { outcome: "selected", optionId: "open" } });
+    expect(decide(params, [])).toEqual({ keys: ["hook-confirm"], allowed: false, kind: "reject_once", outcome: { outcome: "selected", optionId: "dismiss" } });
+    expect(decide(params, ["@fagan/record_rework"]).outcome).toEqual({ outcome: "selected", optionId: "dismiss" });
   });
 
   it("RA-R10.2 never selects allow_always or reject_always", async () => {

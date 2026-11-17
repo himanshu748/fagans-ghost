@@ -7,15 +7,15 @@ Results of the experiments listed in PLAN.md section 2.4. Each row records what 
 | E1 | Do workspace hooks fire in a V3 session driven by T3 Code over ACP? | 3 | Done | Yes, once `initialize` sends `clientCapabilities._meta.kiro.hooks` `{ enabled: true, v2: true }`, which T3 Code sends. Without it no hook runs. See below |
 | E2 | Shell tool ID and command field in `tool_input` | 3 | Done | Hook `tool_name` `execute_bash` (ACP tool call IDs start `run_command_`); command in `tool_input.command`; `tool_input.cwd` is the shell tool's working directory, `null` unless the agent sets it. See below |
 | E3 | Does exit code 2 block the shell call in CLI V3? Where does stderr show? | 3 | Done | Yes: a live `git commit --allow-empty` was blocked over ACP with one open major, commit count stayed 1. The agent got the gate's message; the ACP client got only a `failed` tool update. See below |
-| E4 | Does matcher `@fagan/record_rework` match `mcp_fagan_record_rework`? | 3 | Not run yet | |
-| E5 | Does a `Stop` hook `confirm` block work over ACP? | 3 | Not run yet | |
+| E4 | Does matcher `@fagan/record_rework` match `mcp_fagan_record_rework`? | 3 | Done | Yes: after a live `record_rework` call over ACP (hook `tool_name` `mcp_fagan_record_rework`), `.kiro/hooks/after-rework.json` ran `follow-up --latest`, which verified the fixed major and closed the scratch inspection. The matcher is unchanged. See below |
+| E5 | Does a `Stop` hook `confirm` block work over ACP? | 3 | Done | Yes: it reaches the ACP client as a `session/request_permission` with the hook's options as `allow_once` and `reject_once`, and `{"skip":true}` from `confirmCommand` suppresses it. Choosing the `run: false` option started an extra agent turn with no task (2 of 2 runs), and `Stop` stdout is not given to the agent. The original hook stayed plain; the 2026-11-17 continuation adds a dynamic question with one acknowledgment option. That exact variant is locally tested; live retest is blocked by quota. See below |
 | E6 | Does the T3 Code client expose `/spec`, `/agent`, `/hooks` and manual steering slash commands? | 2 | Partly run | See below |
-| E7 | Agent switching through ACP; project agents as sub-agents; nesting depth | 3 | Not run yet | |
-| E8 | Does the scribe keep `log_defect` as a sub-agent of the moderator? | 3 | Not run yet | |
+| E7 | Agent switching through ACP; project agents as sub-agents; nesting depth | 3 | Done | `_meta.kiro.modeId: "moderator"` on `session/new` started the session in the moderator mode; the moderator started the `scribe` as a sub-agent (hook `tool_name` `subagent_scribe`) without a prompt. Depth tested: 1 (moderator to scribe). See below |
+| E8 | Does the scribe keep `log_defect` as a sub-agent of the moderator? | 3 | Done | Yes: the scribe's `log_defect` ran with no permission request and stored D001 with `raisedBy` `inspector-logic` and `recordedBy` `scribe`. Control: with `fagan/log_defect` removed from the moderator's `mcp` allow rule (scratch copy), the same call asked the client first. See E7 |
 | E9 | Command path resolution and server namespacing for a power's `mcp.json` | 5 | Not run yet | |
 | E10 | Can a power ship steering files or hooks? | 5 | Not run yet | |
 | E11 | Do all agent files pass `kiro-cli agent validate`? | 3 | Done | All five exit 0. The validator also accepted an unknown field, capability and effect. Follow-up: prompts moved to `.kiro/agent-prompts/` after Kiro read them as agent files; all five still exit 0 and the `config_error` notifications stopped. See below |
-| E12 | Units and default of the hook `timeout` field | 3 | Not run yet | |
+| E12 | Units and default of the hook `timeout` field | 3 | Done | Seconds: a `PostToolUse` hook that sleeps 5 s with `timeout` 2 got SIGTERM about 2 s after the tool finished, and a control with `timeout` 2 that sleeps 0.3 s ran to the end. Kiro reported both as `completed` and told neither the client nor the agent about the timeout. See below |
 | E13 | Does `auto` steering inclusion trigger in CLI V3 for our description? | 2 | Not observed | See below |
 | E14 | Do `skill://` resources in agent files load power skills? | 5 | Not run yet | |
 | E15 | How do Kiro Correctness properties relate to our fast-check tests? | after 2, in IDE | Not run yet | Needs the Kiro IDE (you) |
@@ -300,6 +300,7 @@ Run on 2026-11-16 with `kiro-cli 3.3.0` on macOS. Pages read first: [Migrate an 
 - Workspace trust: no run in this step was asked to trust the folder. Over ACP, `session/new` loaded the five workspace agents (they are listed as modes), started the workspace MCP server `fagan` (`_kiro/mcp/status` shows `"origin":"workspace"`, `"standing":{"kind":"active"}`, then `"status":"connected"` with the nine tools), and, once hooks were enabled (E1), loaded the workspace hooks. `git status` ran without a permission request, which matches the documented default allow list for read-only git commands ([permissions](https://kiro.dev/docs/permissions.md#default-behavior)); the permissions page says an untrusted workspace asks before every shell command, so the folder was not treated as untrusted. No trust record was written: `~/.kiro/workspace-roots/` still does not exist.
 - Modes advertised by `session/new` in the scratch repo: `vibe` (current), `spec`, `quick-spec`, `bug-fix`, `plan`, `autonomous`, `semantic_reviewer`, `inspector-interfaces`, `inspector-logic`, `moderator`, `reader`, `scribe`. The same list is the `mode` config option. Other config options: `memoryReflection` (off), `autopilot` (on), `contentCollection` (enabled). `agentCapabilities._meta.kiro.extensionMethods` has 44 methods and no `_kiro/hooks/list`; the hook list arrives as a `_kiro/hooks/didChange` notification instead.
 - Also seen in every pass A session: Kiro reads `.kiro/agents/prompts/*.md` as agent files and sends one `_kiro/customAgent/config_error` notification per prompt file (`"reasonCode":"invalid_config","error":"AgentFileFormatError: No front matter found"`). The five JSON agents still load. Fixed after pass A (FEAT-005): the prompts moved to `.kiro/agent-prompts/`, and a session after the move got no `config_error` (E11, "Follow-up: prompts moved out of .kiro/agents/").
+- Pass B (E4, E5, E7, E8, E12), later on 2026-11-16: the same scratch folder, plus `<scratch>/meet`, a `git clone` of `<scratch>/repo` with no inspections, for E5, E7 and E8. Every session was started in the background with its output and transcript in files. None of the eight pass B sessions got a trust prompt or a `config_error`, and none was offered a persistent choice that the probe took: every `session/request_permission` was answered with a one-time option. Afterwards `~/.kiro/workspace-roots/` still did not exist and `~/.kiro/settings/` had no `permissions.yaml`. The machine was heavily loaded during pass B (load averages between 50 and 190 from other processes), so the session times below are long.
 
 ## E1: workspace hooks over ACP (step 3)
 
@@ -448,3 +449,251 @@ $ node scripts/acp-probe.mjs --cwd <scratch>/clean --transcript <scratch>/logs/e
 The saved payload: `{"session_id":"sess_ab83beb7-...","hook_event_name":"PreToolUse","cwd":"<scratch>/clean","tool_name":"execute_bash","tool_input":{"command":"git commit --allow-empty -m \"cwd probe\" .","description":"Run requested git commit probe","cwd":"<scratch>/repo","run_in_background":false,"timeout":null}}`. The agent copied the trailing ` .` of the prompt's sentence into the command; it is still a `git commit`. Piped back into the launcher from `<scratch>/clean` it exits 2. Both scratch repos still have one commit each (`c082d44 scratch base`, `cd74748 clean base`).
 
 The recorded payloads, with the scratch repo path replaced by `@REPO@`, are test fixtures in `packages/fagan-mcp/test/fixtures/kiro-payloads/` (`pre-tool-use-commit.json`, `pre-tool-use-git-status.json`, `pre-tool-use-git-status-tool-cwd.json`, `post-tool-use-git-status.json`, `stop.json`), used by `cli.test.ts`.
+
+## E4: the after-rework matcher (step 3)
+
+Run on 2026-11-16 (FEAT-003 pass B) in `<scratch>/repo`, which was still in Rework from E2 (insp-0001, one open major D001 on `src/calc.ts` line 6). Before the session, the experimenter, as the Author in this scratch repo, changed line 6 back to `return a - b;`. The probe approved exactly one MCP call, `record_rework`, with `allow_once`:
+
+```text
+$ node scripts/acp-probe.mjs --cwd <scratch>/repo --transcript <scratch>/logs/e4.jsonl \
+    --allow @fagan/record_rework --timeout 300 --linger 10 \
+    'Call the fagan MCP tool record_rework exactly once with these arguments and no others: {"inspection_id":"insp-0001","role":"author","items":[{"defect_id":"D001","resolution":"fixed","note":"sub now returns a - b; the extra + 1 was removed from src/calc.ts line 6."}]}. Do not call any other tool before or after it. Then reply with one sentence that quotes the tool result and any hook output you were shown.'
+[probe] session_info_update kind=hook_update        (probe PreToolUse, completed)
+[probe] tool_call_update toolu_bdrk_01VC... status=completed content={ "loaded": [ { "tool_id": "fagan::record_rework", "description": "Rework: the Author marks defects fixed ...
+[probe] session_info_update kind=hook_update        (probe PostToolUse, completed)
+[probe] session_info_update kind=hook_update        (probe PreToolUse, completed)
+[probe] tool_call toolu_bdrk_0154... kind=other status=pending title=@fagan/record_rework rawInput={"inspection_id":"insp-0001","role":"author","items":[{"defect_id":"D001","resolution":"fixed","note":"sub now returns a - b; the extra + 1 was removed from src/calc.ts line 6."}]}
+[probe] permission toolu_bdrk_0154... title=@fagan/record_rework keys=["@fagan/record_rework","mcp:fagan/record_rework"] options=["allow_once","allow_always","reject_once","reject_always"] -> allow_once
+[probe] tool_call_update toolu_bdrk_0154... status=in_progress
+[probe] tool_call_update toolu_bdrk_0154... status=completed content={"items":[{"defect_id":"D001","resolution":"fixed","recorded_at":"2026-11-16T17:25:05.261Z"}],"open_majors":1}
+[probe] session_info_update kind=hook_update        (Fagan follow-up after rework, completed)
+[probe] session_info_update kind=hook_update        (probe PostToolUse, completed)
+[probe] session_info_update kind=hook_update        (Suggest a Fagan inspection, completed)
+[probe] session_info_update kind=hook_update        (probe Stop, completed)
+[probe] prompt 1 stopReason=end_turn
+[probe] agent said: The tool returned `{"items":[{"defect_id":"D001","resolution":"fixed","recorded_at":"2026-11-16T17:25:05.261Z"}],"open_majors":1}`, and I was shown no hook output.
+```
+
+(Hook names are added from each `hook_update`'s `_meta.kiro.hook.name`.) The session took 43 s from launch to the probe's exit, including the 10 s linger; stderr had two `HTTP 429 ... USER_REQUEST_RATE_EXCEEDED` lines and the turn still finished.
+
+The raw permission request (scratch path shortened):
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"sess_3ae60fc2-...","toolCall":{"toolCallId":"toolu_bdrk_0154...","status":"pending","title":"@fagan/record_rework"},"options":[{"optionId":"accept","name":"Allow","kind":"allow_once"},{"optionId":"always-accept","name":"Always allow","kind":"allow_always"},{"optionId":"reject","name":"Deny","kind":"reject_once"},{"optionId":"always-reject","name":"Always deny","kind":"reject_always"}],"_meta":{"kiro":{"toolId":"mcp_fagan_record_rework","agentManagesTrust":true,"consent":{"capability":"mcp","resource":"fagan/record_rework","askType":"implicit","workspaceRoot":"<scratch>/repo"},"consentRound":1,"mcpTool":{"version":1,"identity":{"serverName":"fagan","toolName":"record_rework"}}}}}}
+```
+
+Two of the five hook payloads, the `PreToolUse` of the first call and the `PostToolUse` of the MCP call, from `<scratch>/probe-log/`:
+
+```json
+{"session_id":"sess_3ae60fc2-...","hook_event_name":"PreToolUse","cwd":"<scratch>/repo","tool_name":"tool_load","tool_input":{"tool_ids":["fagan::record_rework"]}}
+{"session_id":"sess_3ae60fc2-...","hook_event_name":"PostToolUse","cwd":"<scratch>/repo","tool_name":"mcp_fagan_record_rework","tool_input":{"inspection_id":"insp-0001","role":"author","items":[{"defect_id":"D001","resolution":"fixed","note":"sub now returns a - b; the extra + 1 was removed from src/calc.ts line 6."}]},"tool_response":"{\"items\":[{\"defect_id\":\"D001\",\"resolution\":\"fixed\",\"recorded_at\":\"2026-11-16T17:25:05.261Z\"}],\"open_majors\":1}"}
+```
+
+The scratch store after the session, written by the scratch repo's own `fagan` server and the hook (nothing edited by hand):
+
+```text
+rework.json    items: [{ defectId D001, resolution fixed, note "sub now returns a - b; ...", recordedAt 2026-11-16T17:25:05.261Z }]
+events.jsonl   {"seq":7,"at":"2026-11-16T17:25:05.262Z","tool":"record_rework","role":"author","phase":"Rework",...}
+               {"seq":8,"at":"2026-11-16T17:25:05.676Z","tool":"cli:follow-up","role":"human","phase":"Closed","data":{"attempt":1,"passed":true,"blocking":[]}}
+followup.json  attempt 1 at 2026-11-16T17:25:05.674Z: build and tests passed, D001 major "verified", blocking [], passed true
+inspection.json  "phase": "Closed"
+```
+
+Conclusions:
+
+- E4: the matcher `@fagan/record_rework` matches the V3 tool ID `mcp_fagan_record_rework`. `.kiro/hooks/after-rework.json` fired once, after the call (its `hook_update` at 17:25:05.735Z, the CLI's `cli:follow-up` event at 05.676Z, 414 ms after `record_rework` was stored), ran the follow-up checks and closed the inspection. No fallback matcher was needed, so the hook file and the RA-R6.3 test are unchanged.
+- The MCP server Kiro started wrote to the scratch repo's store, so it ran with the workspace root as its cwd (Kiro's logs do not show the cwd; the store write does).
+- The default agent reached the MCP tool through Kiro's tool search: it first called a built-in `tool_load` tool (`tool_ids: ["fagan::record_rework"]`, no permission request, no `tool_call` notification, only a `completed` update), then the MCP tool itself. The hooks saw both calls as separate tools; the MCP call carried its own `mcp_fagan_record_rework` name, so no generic wrapper hides it from a matcher.
+- The permission request has the shape the probe expected: `_meta.kiro.mcpTool.identity` gives the key `@fagan/record_rework` and `_meta.kiro.consent` gives `mcp:fagan/record_rework`. It also carries `toolId`, `agentManagesTrust`, `consent.askType` `implicit`, `consent.workspaceRoot` and `consentRound`. All four option kinds were offered; the probe chose `allow_once` (`optionId` `accept`). No persistent choice was made. The request reached the client after the `PreToolUse` hooks and before the tool ran, so the default agent's MCP calls do ask the human by default, as the [permissions page](https://kiro.dev/docs/permissions.md) says.
+- The agent said it was shown no hook output, although the hook exited 0 and `follow-up --latest` prints the follow-up result JSON. E12 below also saw no `PostToolUse` hook output reach the agent, which matches the actions page's CLI text.
+
+## E5: a `confirm` block on the Stop hook over ACP (step 3)
+
+Docs re-read on 2026-11-16 before the run: [hooks](https://kiro.dev/docs/hooks/) ("Confirmation prompts": a `Stop` command hook may carry `confirm` `{ question, options: [{ id, label, run }], confirmCommand }`; `confirmCommand` stdout `{ "skip": true }` suppresses the prompt and skips the hook for this turn, `{ "question": ..., "options": [...] }` replaces the static ones, and a non-zero exit, a timeout or invalid JSON falls back to the static ones), [hook types](https://kiro.dev/docs/hooks/types/) ("Agent Stop": exit 0 without a continue decision leaves the response finished; exit 1 or a `decision: "block"` JSON on stdout starts another agent turn) and [hook actions](https://kiro.dev/docs/hooks/actions/) (its general text says exit 0 adds stdout to the agent's context; its CLI list says "Exit code 0: Hook succeeded. STDOUT is added to context (SessionStart, UserPromptSubmit) or ignored (others)"). role-agents design.md had quoted only the general text ("exit 0 adds stdout to the agent's context" for every trigger).
+
+Setup, scratch only: `<scratch>/meet` is a fresh `git clone` of `<scratch>/repo` (so no inspections), with one scratch commit that adds this `confirm` block to its copy of `.kiro/hooks/suggest-inspection.json` (the action is unchanged):
+
+```json
+"confirm": {
+  "question": "E5 static question: run the Fagan suggestion hook?",
+  "confirmCommand": "node <scratch>/confirm-suggest.mjs",
+  "options": [
+    { "id": "run", "label": "Yes, run it", "run": true },
+    { "id": "skip", "label": "Not this time", "run": false }
+  ]
+}
+```
+
+`<scratch>/confirm-suggest.mjs` runs `node scripts/fagan-hook.mjs hook suggest` with an empty stdin, prints `{"skip":true}` when the suggestion is empty and otherwise `{"question":"E5 dynamic question: <suggestion>","options":[{"id":"open","label":"Show the suggestion","run":true},{"id":"dismiss","label":"Not now","run":false}]}`, and logs each run to `<scratch>/probe-log/`. The working tree of `<scratch>/meet` had 10 added lines in `src/calc.ts` (threshold 5). The same hook copy was committed in `<scratch>/clean`, whose tree was clean. Each session sent one prompt, `Reply with the single word READY. Do not call any tool.`, with `--timeout 240 --linger 15`. For the run where the probe approved the prompt, the probe got a new key, `hook-confirm`, for requests whose `toolCall.toolCallId` starts with `hook-confirm-` (`scripts/acp-probe.mjs`, test in `acp-probe.test.ts`).
+
+| Run | Repo | Probe choice | What reached the client | Hook | Agent reply | Model requests in the turn |
+| --- | --- | --- | --- | --- | --- | --- |
+| e5 | meet (10 lines) | `reject_once` (`dismiss`) | `tool_call` `hook-confirm-<uuid>` with the dynamic question as title, then `session/request_permission` | `failed` tool update, then `hook_update` completed | `READY`, then a second reply: "The hook asked me to keep working but gave no task. ..." | 2 |
+| e5b | meet (10 lines) | `allow_once` (`open`) | the same | `completed` tool update, then `hook_update` completed | `READY` | 1 |
+| e5c | clean (0 lines) | none needed | nothing: `confirmCommand` printed `{"skip":true}` | no `hook_update` for the suggest hook | `READY` | 1 |
+| e5d | meet (10 lines) | `reject_once` (`skip`) | the same request, but with the static question: `confirmCommand` wrote no log, so it did not finish (load average was above 50) | `failed`, then `hook_update` completed | `READY`, then "I have no outstanding work. ... the hook gave no further task. ..." | 2 |
+
+The raw request from run e5:
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"sess_5a249b67-...","toolCall":{"toolCallId":"hook-confirm-fceced92-...","status":"pending","title":"E5 dynamic question: fagan: 10 changed lines against HEAD (threshold 5) and no inspection covers them. Consider asking the moderator agent to open an inspection with open_inspection."},"options":[{"optionId":"open","name":"Show the suggestion","kind":"allow_once"},{"optionId":"dismiss","name":"Not now","kind":"reject_once"}]}}
+```
+
+The `tool_call` before it carried `_meta.kiro.hookConfirm` `{ "kind": "stop", "hookName": "Suggest a Fagan inspection", "question": ... }`, and the closing `tool_call_update` added `"decision": "dismiss"`. The request has no `_meta.kiro.consent`; the hook's option IDs and labels are passed through, with `run: true` sent as `allow_once` and `run: false` as `reject_once`, and no persistent option is offered. Session times from launch to probe exit: e5 61 s, e5b 40 s, e5c 42 s, e5d 162 s (the machine was heavily loaded).
+
+Conclusions:
+
+- E5: a `confirm` block works over ACP. Kiro asks the client with an ordinary `session/request_permission`, so an ACP client such as T3 Code can show the question (static or from `confirmCommand`) and the hook's own labels, and `{"skip":true}` keeps the prompt away when there is nothing to ask.
+- Choosing the `run: false` option made Kiro start another agent turn in both runs that tried it, and the agent answered a task nobody gave. That costs a model request on every dismissal. Approving it, or skipping it with `{"skip":true}`, did not.
+- Under heavy load `confirmCommand` did not finish once and Kiro fell back to the static question, as the hooks page says. Its time limit is not documented.
+- In E5b the suggest action ran with a suggestion due and the agent's only reply was `READY`. The actions page says a CLI V3 `Stop` hook's stdout is ignored, and a `Stop` hook that exits 0 without a continue decision leaves the response finished, so even a hook that printed something would get no reply. So the current plain suggestion (RA-R6.1) runs but, as far as these runs and the docs show, reaches neither the agent nor the human in CLI V3 over ACP. The open choices are listed in role-agents design.md "Hooks"; this repo's hook file is unchanged.
+
+## E12: hook timeout units (step 3)
+
+The [hooks](https://kiro.dev/docs/hooks/) page says `hooks[].timeout` is "Timeout in seconds for command actions (default: 60). `0` disables the timeout." The CLI section of the [hook actions](https://kiro.dev/docs/hooks/actions/) page, re-read on 2026-11-16, also says "Default timeout is 30 seconds (30,000ms). Configure with the `timeout_ms` field in the hook configuration", which looks like the CLI 2.x agent-embedded hook form. This run checks the unit for a standalone `.kiro/hooks/*.json` file in CLI V3.
+
+Setup, scratch only: `<scratch>/repo/.kiro/hooks/zz-e12.json` (deleted after the run) with two `PostToolUse` hooks, matcher `shell`, `timeout` 2, in this order: "e12 slow" runs `node <scratch>/e12-hook.mjs slow 5` and "e12 quick" runs `node <scratch>/e12-hook.mjs quick 0.3`. The script writes a `<name>-start` file, a `<name>-sigterm` file if it gets SIGTERM, and a `<name>-end` file after its sleep, then prints `E12-<NAME>-STDOUT` on stdout and `E12-<NAME>-STDERR` on stderr and exits 0. If the unit were milliseconds both hooks would be stopped; if it were minutes both would finish.
+
+```text
+$ node scripts/acp-probe.mjs --cwd <scratch>/repo --transcript <scratch>/logs/e12.jsonl \
+    --allow 'shell:git status --short' --timeout 300 --linger 15 \
+    'Run exactly `git status --short` with your shell tool, once. Then reply with the single word DONE and, on the next line, quote verbatim any hook output or hook message you were shown after the tool result, or write NONE.'
+[probe] session_info_update kind=hook_update        (Fagan commit gate, completed)
+[probe] session_info_update kind=hook_update        (probe PreToolUse, completed)
+[probe] tool_call run_command_toolu_bdrk_01Ja... kind=execute status=pending title=Show short git status rawInput={"command":"git status --short","description":"Show short git status","run_in_background":false}
+[probe] tool_call_update run_command_toolu_bdrk_01Ja... status=completed content=Output:   (17:52:43.543Z)
+[probe] session_info_update kind=hook_update        (e12 slow, completed)          17:52:46.712Z
+[probe] session_info_update kind=hook_update        (e12 quick, completed)         17:52:46.757Z
+[probe] session_info_update kind=hook_update        (probe PostToolUse, completed) 17:52:46.843Z
+[probe] session_info_update kind=hook_update        (Suggest a Fagan inspection, completed)
+[probe] session_info_update kind=hook_update        (probe Stop, completed)
+[probe] prompt 1 stopReason=end_turn
+[probe] agent said: DONE
+NONE
+```
+
+The files the hook script wrote (times in UTC):
+
+```text
+slow-start    17:52:44.457Z  (pid 2941, sleep 5 s)
+slow-sigterm  17:52:45.553Z  (1096 ms after its own start, 2010 ms after the shell tool completed)
+quick-start   17:52:45.976Z  (pid 2958, sleep 0.3 s)
+quick-end     17:52:46.289Z  (313 ms after its own start)
+```
+
+No `slow-end` file was written. The machine was heavily loaded (load average above 100), so Node took about 0.9 s to start the slow hook; the SIGTERM came about 2 s after Kiro could have spawned it. The session took 77 s from launch to probe exit.
+
+Conclusions:
+
+- E12: `timeout` in a standalone hook file is in seconds in CLI V3. A hook still running when it runs out gets SIGTERM; a hook that finishes inside it is not touched. This matches the hooks page; the `timeout_ms` field the actions page mentions was not tried.
+- Kiro gave no sign of the timeout: the `hook_update` for "e12 slow" says `completed`, like every other, and Kiro's session log has no timeout line. The agent answered `NONE`, so neither hook's stdout or stderr reached it, which matches the actions page (`PostToolUse` stdout is ignored, and other exit codes show a warning to the user, which this ACP client never received).
+- The `PostToolUse` hooks ran one after another in file and array order (slow, then quick, then the probe hook), and all three `hook_update` notifications arrived together after the last one finished. A slow `PostToolUse` hook therefore delays the hooks after it and the rest of the turn. The after-rework hook's `timeout` of 1260 s (RA-R6.5) is a real limit in seconds; FEAT-001 measured this repo's build plus tests at about 35 s.
+- Default 60 s and `0` disables: not tested live (every hook in this repo sets `timeout`).
+
+## E7 and E8: the moderator mode and the scribe as its sub-agent (step 3)
+
+Docs re-read on 2026-11-16: [sub-agents](https://kiro.dev/docs/custom-agents/subagents.md) (CLI V3 checks every sub-agent tool call against the parent session's policy and the sub-agent's own `permissions`, the stricter wins, a call the parent policy has no rule for prompts, and the parent agent's `permissions.rules` can carry the sub-agent's allow rules; it gives no nesting limit and says custom agents inside a workflow "can still invoke sub-agents when their tool configuration permits it").
+
+Setup, scratch only: in `<scratch>/meet` (the E5 clone, with the `confirm` commit reverted so its suggest hook is the plain scratch copy again, and 10 added lines in `src/calc.ts` including `clamp`, whose line 10 is `if (x < lo) return hi;`), `<scratch>/to-meeting.mjs` (the SDK `Client` pattern of `contract.test.ts`) called `open_inspection`, `get_packet` for preparation as `inspector-logic` and `get_packet` for the meeting as `moderator`. Result: insp-0001 in Meeting with one unit, U001 (`src/calc.ts`, new lines 4 to 13), and `defects.json` holding no defects. The DEFECT line in the prompt was written by the experimenter for this test and attributed to `inspector-logic`; no inspector agent ran.
+
+```text
+$ node scripts/acp-probe.mjs --cwd <scratch>/meet --transcript <scratch>/logs/e7.jsonl \
+    --mode moderator --mode-via auto \
+    --allow @fagan/log_defect --allow @fagan/get_packet --allow subagent:scribe \
+    --timeout 600 --linger 15 \
+    "This is a delegation test in a scratch repo. Inspection insp-0001 is already in the Meeting phase; the experimenter set it up. Do only meeting step 4.3 for unit U001: inspector-logic raised exactly the DEFECT line below. Start the scribe sub-agent and send it the inspection ID insp-0001 and this line, copied exactly. Do not start any other sub-agent, do not call close_meeting, metrics or export_report, and do not call any other fagan tool. Then reply with the scribe's reply, quoted exactly.
+
+DEFECT | by=inspector-logic | unit=U001 | file=src/calc.ts | side=new | lines=10-10 | type=logic | class=wrong | severity=major | checklist=- | description=clamp returns hi when x is below lo; for x < lo the result is hi instead of lo."
+[probe] modes: current=moderator available=["vibe","spec","quick-spec","bug-fix","plan","autonomous","semantic_reviewer","inspector-interfaces","inspector-logic","moderator","reader","scribe"]
+[probe] mode moderator via _meta.kiro.modeId: current=moderator
+[probe] session_info_update kind=hook_update        (probe PreToolUse)
+[probe] tool_call invoke_subagent_toolu_bdrk_01Sr... kind=other status=pending title=Sub-agent: scribe rawInput={"name":"scribe","prompt":"Inspection ID: insp-0001. Log exactly the following DEFECT line, copied exactly, and reply with the defect ID or the error for it:\n\nDEFECT | by=inspector-logic | unit=U001 | ... | description=clamp returns hi when x is below lo; for x < lo the result is hi instead of lo.", ...}
+[probe] tool_call_update invoke_subagent_toolu_bdrk_01Sr... status=in_progress
+[probe] tool_call_update toolu_bdrk_01Fs... status=completed content={ "loaded": [ { "tool_id": "fagan::log_defect", ...      (the scribe's tool_load)
+[probe] tool_call toolu_bdrk_01Gy... kind=other status=pending title=@fagan/log_defect rawInput={"inspection_id":"insp-0001","role":"scribe","raised_by":"inspector-logic","unit_id":"U001","file":"src/calc.ts","side":"new","line_start":10,"line_end":10,"type":"logic","class":"wrong","severity":"major","description":"clamp returns hi when x is below lo; for x < lo the result is hi instead of lo."}
+[probe] tool_call_update toolu_bdrk_01Gy... status=completed content={"defect_id":"D001","counts":{"major":1,"minor":0}}
+[probe] tool_call_update invoke_subagent_toolu_bdrk_01Sr... status=completed
+[probe] prompt 1 stopReason=end_turn
+[probe] agent said: D001 <- DEFECT | by=inspector-logic | unit=U001 | ... | description=clamp returns hi when x is below lo; for x < lo the result is hi instead of lo.The scribe replied:
+
+D001 <- DEFECT | by=inspector-logic | unit=U001 | file=src/calc.ts | side=new | lines=10-10 | type=logic | class=wrong | severity=major | checklist=- | description=clamp returns hi when x is below lo; for x < lo the result is hi instead of lo.
+```
+
+The transcript has no `session/request_permission` and no other agent-to-client request. `defects.json` afterwards, written by the scratch repo's `fagan` server:
+
+```json
+{"id":"D001","unitId":"U001","location":{"file":"src/calc.ts","side":"new","lineStart":10,"lineEnd":10},"type":"logic","class":"wrong","severity":"major","raisedBy":"inspector-logic","recordedBy":"scribe","description":"clamp returns hi when x is below lo; for x < lo the result is hi instead of lo.","checklistItemId":null,"loggedAt":"2026-11-16T17:57:53.671Z"}
+```
+
+The hook payloads for the run, in order (`tool_input` shortened): `PreToolUse` `subagent_scribe` `{ prompt, explanation }`, `PreToolUse` and `PostToolUse` `tool_load` `{ tool_ids: ["fagan::log_defect"] }`, `PreToolUse` and `PostToolUse` `mcp_fagan_log_defect` (the full `log_defect` arguments above), `PostToolUse` `subagent_scribe` (with the scribe's reply as `tool_response`), then `Stop`. Every payload carried the parent session's `session_id`. The turn took 75 s and five model requests; the session took 111 s from launch to probe exit, and `kiro-cli` exited with code 0.
+
+Control for E8 (scratch copy only): `<scratch>/meet/.kiro/agents/moderator.json` with `fagan/log_defect` removed from its `mcp` allow rule, and the same prompt with another line (`lines=9-13 | type=logic | class=missing | severity=minor | ... | description=clamp does not handle lo greater than hi; with lo > hi it returns hi for every x.`):
+
+```text
+[probe] tool_call invoke_subagent_toolu_bdrk_01T5... kind=other status=pending title=Sub-agent: scribe ...
+[probe] tool_call toolu_bdrk_011e... kind=other status=pending title=@fagan/log_defect rawInput={"inspection_id":"insp-0001","role":"scribe",...,"severity":"minor","raised_by":"inspector-logic",...}
+[probe] permission toolu_bdrk_011e... title=@fagan/log_defect keys=["@fagan/log_defect","mcp:fagan/log_defect"] options=["allow_once","allow_always","reject_once","reject_always"] -> allow_once
+[probe] agent said: D002 <- DEFECT | by=inspector-logic | unit=U001 | ... The scribe's reply, quoted exactly: ...
+```
+
+The request had the same shape as E4's (`_meta.kiro.toolId` `mcp_fagan_log_defect`, `consent` `mcp` `fagan/log_defect`, `mcpTool.identity`) and nothing marking it as a sub-agent's call; only the `tool_call` notification before it carried `_meta.kiro.agentSubtaskId`. The probe approved it once and D002 was stored (`raisedBy` `inspector-logic`, `recordedBy` `scribe`). The scratch moderator file was restored afterwards. This session took 144 s.
+
+Conclusions:
+
+- E7, switching: the role agents are ACP modes, and `_meta.kiro.modeId` on `session/new` starts the session in one (`current=moderator`, so the probe sent no `session/set_mode`). `session/set_mode` was not needed and not tried.
+- E7, sub-agents: the moderator started the project agent `scribe` with Kiro's sub-agent tool. Over ACP it is a `tool_call` with `toolCallId` prefix `invoke_subagent_`, title `Sub-agent: scribe`, `rawInput.name` `scribe` and `_meta.kiro` `{ kind: "agent-subtask", agentSubtaskId }`; in hook payloads it is `tool_name` `subagent_scribe`. The scribe's own tool calls stream into the parent session with the same `agentSubtaskId`, its reply text streams in as agent message chunks, and the workspace hooks run for its calls with the parent's `session_id`. So the commit gate also sees any sub-agent shell call (none of the role agents has `shell`). The delegation ran in the foreground (`runningWorkflows` 0) and the parent turn waited for it.
+- E7, nesting: depth 1 was tested (moderator to scribe). The sub-agents page states no depth limit. In this repo deeper nesting cannot happen by configuration: only the moderator lists `subagent/<name>` tools, and the four other agents deny the `subagent` capability.
+- E8: the scribe keeps `log_defect` as the moderator's sub-agent, and the moderator's `mcp` allow rule is what lets the call run without a prompt: with the rule the client was never asked, without it the client was asked. The start of the scribe needed no approval in either run (the moderator's `subagent` allow rule). The design in role-agents design.md "Permission evaluation and E8" holds live.
+- The `code` tool: no agent called it in these runs (the moderator only called the sub-agent tool, the scribe only `tool_load` and `log_defect`).
+
+## 2026-11-17 continuation: suggestion fix and provider blocker
+
+Implementation surface for this continuation: Codex through T3 Code. Earlier
+Kiro experiment results above were recovered from the previous run's local
+changes; they were not repeated here. No Codex-generated reading or finding is
+being presented as a Kiro inspection.
+
+The invisible Stop suggestion now uses the documented `confirm.confirmCommand`
+protocol in [Kiro hooks](https://kiro.dev/docs/hooks/) (rechecked 2026-11-17).
+`scripts/fagan-hook.mjs hook suggest-confirm` puts the CLI's actual suggestion
+in the confirmation question, or emits `{ "skip": true }`. The one `Got it`
+option uses `run: true`: it acknowledges the suggestion without opening an
+inspection. This selects E5's previously working approve path. There is no
+`run: false` button; dismissing the host UI could still cause Kiro's extra turn.
+The child process is bounded to 20 seconds and makes no model calls. Tests cover
+a due suggestion, below-threshold and already-covered diffs, an unbuilt CLI and
+a failed diff check. Live verification of this exact variant is **blocked**.
+
+A single availability probe used the repo's moderator mode, a 120-second
+limit, and only `hook-confirm` in the probe's allow list. The prompt was:
+`Reply with the single word READY. Do not call any tools or start sub-agents.
+This checks Kiro availability and the suggestion hook only.` Kiro selected
+`moderator` and connected the `fagan` MCP server, but rejected `session/prompt`
+with `UsageLimitReachedError` at `2026-11-17T04:49:30.660Z`. The probe exited 1.
+No meeting, reading, defect, rework or waiver was created. The raw error alone
+is retained in [the quota receipt](experiments/2026-11-17-kiro-usage-limit.json);
+unrelated session metadata is excluded. No overages, upgrade, alternative
+provider, or repeated retries were used.
+
+The whole-repository size preflight did run through the real built MCP server
+over stdio using the Node SDK client, without a Kiro agent. At HEAD
+`c6d3e7514858ba7f2f2a8afc6823b3087688a043`, `001cf80..HEAD` returned
+`SIZE_LIMIT_EXCEEDED`: 12,483 changed lines against the configured limit of
+1,500. The inspection-directory list was empty before and after. See the
+[request and result](experiments/2026-11-17-size-preflight.json). The first
+attempt to save this receipt failed because its output directory was absent;
+after creating the directory the read-only preflight was repeated and saved.
+This establishes the real entry-criterion failure, not a completed inspection.
+
+The first real inspection (`647a96b..4b4c692`, 13 files, 501 changed lines) is
+still pending, as are the Inspection Room, power installation, final CI and
+submission deliverables. The exact continuation and IDE steps are in
+[STEP3_RESUME.md](STEP3_RESUME.md). Do not create viewer demo data until the
+Kiro roles have produced an actual exported inspection.
+
+Validation on this continuation: `npm test` passed strict typechecking and all
+225 tests in 22 files, including the real stdio MCP contract test (fixture
+repo), property-based tests and hook/agent configuration checks. Vitest reported
+49.06 seconds for the final suite. `npm run build` and `git diff --check` passed.
+The initial unchanged baseline had 221 passing tests. The fixture contract
+run does not replace the blocked Kiro role-agent inspection.

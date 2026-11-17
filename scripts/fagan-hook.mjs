@@ -108,8 +108,32 @@ async function gateFallback() {
   return EXIT_BLOCK;
 }
 
+/** Stop hooks ignore plain stdout in CLI V3. Put the suggestion in the
+ * documented confirmCommand question instead; acknowledging does not open an
+ * inspection. No model call, store mutation or shell is involved here. */
+async function suggestConfirm() {
+  let question = "";
+  if (!existsSync(CLI_PATH)) {
+    writeLine(process.stderr, `fagan suggestion: ${MISSING}`);
+  } else {
+    const r = spawnSync(process.execPath, [CLI_PATH, "hook", "suggest"], {
+      input: await readStdin(), encoding: "utf8", timeout: 20_000,
+      maxBuffer: 1024 * 1024,
+    });
+    if (r.stderr) process.stderr.write(r.stderr);
+    if (r.error) writeLine(process.stderr, `fagan suggestion: ${r.error.message}`);
+    if (r.status === 0 && !r.error) question = r.stdout.trim();
+  }
+  writeLine(process.stdout, JSON.stringify(question ? {
+    question,
+    options: [{ id: "acknowledge", label: "Got it", run: true }],
+  } : { skip: true }));
+  return 0;
+}
+
 /** Runs the launcher for `args` and returns the exit code. */
 export async function main(args) {
+  if (args.length === 2 && args[0] === "hook" && args[1] === "suggest-confirm") return suggestConfirm();
   if (existsSync(CLI_PATH)) {
     const r = spawnSync(process.execPath, [CLI_PATH, ...args], { stdio: "inherit" });
     if (r.error !== undefined) {
@@ -121,8 +145,8 @@ export async function main(args) {
   const [cmd, sub] = args;
   if (cmd === "hook" && sub === "gate" && args.length === 2) return gateFallback();
   if ((cmd === "hook" && sub === "suggest" && args.length === 2) || cmd === "follow-up") {
-    // Exit 0 adds stdout to the agent's context and other output is not shown,
-    // so the warning goes to both streams (RA-R7.4).
+    // Keep CLI diagnostics on both streams (RA-R7.4). Visibility in Kiro
+    // depends on the trigger; Stop and PostToolUse stdout is ignored in V3.
     const message = `fagan ${args.join(" ")}: skipped. ${MISSING}`;
     writeLine(process.stdout, message);
     writeLine(process.stderr, message);

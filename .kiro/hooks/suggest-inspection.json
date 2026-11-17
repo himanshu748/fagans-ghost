@@ -3,11 +3,25 @@
   "hooks": [
     {
       "name": "Suggest a Fagan inspection",
-      "description": "After each agent turn, suggest asking the moderator agent to open an inspection when the working tree has more than suggestThresholdLoc changed lines against HEAD (.fagan/config.json) that no open inspection covers. Prints nothing otherwise and always exits 0.",
+      "description": "After each agent turn, show an inspection suggestion when changed lines exceed suggestThresholdLoc and no open inspection covers them. Acknowledgment does not open an inspection.",
       "trigger": "Stop",
-      "action": { "type": "command", "command": "node scripts/fagan-hook.mjs hook suggest" },
+      "action": {
+        "type": "command",
+        "command": "node scripts/fagan-hook.mjs hook suggest"
+      },
       "timeout": 30,
-      "enabled": true
+      "enabled": true,
+      "confirm": {
+        "question": "Fagan's Ghost could not check this diff. Run npm run build and node scripts/fagan-hook.mjs hook suggest to check manually. This acknowledgment does not open an inspection.",
+        "confirmCommand": "node scripts/fagan-hook.mjs hook suggest-confirm",
+        "options": [
+          {
+            "id": "acknowledge",
+            "label": "Got it",
+            "run": true
+          }
+        ]
+      }
     }
   ]
 }

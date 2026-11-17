@@ -238,7 +238,7 @@ PLAN.md section 2.4 asked, as E8, whether the scribe keeps `log_defect` when it 
 
 So the moderator carries `mcp` allow rules for exactly the `fagan` tools its sub-agents call, and nothing broader (RA-R3.5, RA-R3.6). For the scribe's `log_defect` call the result is: parent policy allow (moderator rule), scribe policy no rule (its `fagan/*` deny excludes `log_defect`), so the call runs. For an inspector's `log_defect` call, if one were possible, the result would be deny, because the inspector has no such tool and its own `fagan/*` deny covers it.
 
-This is the fallback PLAN.md section 2.4 gave for E8 ("Moderator gets `log_defect` in `permissions` (allow) but not in `tools`"), adopted as the design because the docs describe it. FEAT-003 checks it live; if the scribe's call is still refused or prompts, the other fallback is for the Author's default agent to start the scribe directly.
+This is the fallback PLAN.md section 2.4 gave for E8 ("Moderator gets `log_defect` in `permissions` (allow) but not in `tools`"), adopted as the design because the docs describe it. FEAT-003 checked it live (docs/experiments.md E7 and E8): in moderator mode over ACP, the scribe started as a sub-agent without a prompt and its `log_defect` call ran without a permission request, storing `raisedBy` `inspector-logic` and `recordedBy` `scribe`. In a scratch control with `fagan/log_defect` removed from the moderator's `mcp` allow rule, the same call reached the client as a `session/request_permission`, so the parent rule is what lets it through. The fallback (the Author's default agent starts the scribe directly) is not needed.
 
 ## Resources and steering
 
@@ -311,7 +311,7 @@ PLAN.md section 10 steps 1 to 6, as the moderator prompt runs them:
    4. The scribe replies with one defect ID or one error per line. The moderator shows errors to the Author and does not correct lines itself.
 6. When every unit has a reading, the moderator calls `close_meeting` (FM-R7.2 refuses it otherwise), then `metrics` and `export_report`, and gives the Author the defect list, totals, metrics (with any `null` values and reasons) and report paths.
 
-How inspector findings reach the scribe: each delegated agent has its own context window (sub-agents page), so the design assumes a sub-agent knows only what the moderator puts in its request, and the moderator prompt tells it to send everything the sub-agent needs. FEAT-003 (E7) observes this live. The inspectors cannot call `log_defect` or start the scribe, so the only path from an inspector's finding to the defect log is its reply, copied by the moderator into the scribe's request. That is why the line format is fixed and why the moderator prompt forbids adding, dropping, merging, reordering or rewording lines. The defect's `raised_by` is the inspector named in the line, and the server stores `recordedBy: "scribe"` (FM-R6.7), so the record shows who raised and who logged each defect.
+How inspector findings reach the scribe: each delegated agent has its own context window (sub-agents page), so the design assumes a sub-agent knows only what the moderator puts in its request, and the moderator prompt tells it to send everything the sub-agent needs. FEAT-003 (E7) saw this live for the scribe: Kiro's sub-agent tool takes the agent `name` and one `prompt`, which the moderator filled with the inspection ID and the DEFECT line, and the scribe logged it from that alone. The inspectors cannot call `log_defect` or start the scribe, so the only path from an inspector's finding to the defect log is its reply, copied by the moderator into the scribe's request. That is why the line format is fixed and why the moderator prompt forbids adding, dropping, merging, reordering or rewording lines. The defect's `raised_by` is the inspector named in the line, and the server stores `recordedBy: "scribe"` (FM-R6.7), so the record shows who raised and who logged each defect.
 
 Rework and follow-up are not part of the meeting. The moderator tells the Author to record rework from the default agent and, when asked, calls `follow_up` and reports the result.
 
@@ -325,7 +325,13 @@ The after-rework hook and `fagan follow-up` never record rework or waive anythin
 
 ## Hooks
 
-All three hooks use the documented v1 file format with one hook per file, a command action and an explicit `timeout` in seconds (RA-R6.4). Command actions run in the project root and get the session context JSON on stdin. Exit 0 adds stdout to the agent's context. Any other exit code sends stderr to the agent and, for `PreToolUse`, blocks the tool call ([hook actions](https://kiro.dev/docs/hooks/actions/)). Hooks cannot call MCP tools, so each one runs the `fagan` CLI through the launcher. None has a `confirm` block yet; E5 decides whether the suggestion gets one.
+All three hooks use the documented v1 file format with one hook per file, a command action and an explicit `timeout` in seconds (RA-R6.4). Command actions run in the project root and get the session context JSON on stdin. Hooks cannot call MCP tools, so each one runs the `fagan` CLI through the launcher.
+
+What happens to a hook's output depends on the trigger. The general text of the [hook actions](https://kiro.dev/docs/hooks/actions/) page, which this spec first quoted, says exit 0 adds stdout to the agent's context and any other exit code sends stderr to the agent. The CLI list on the same page, re-read on 2026-11-16 (FEAT-003 pass B), says stdout is added to context only for `SessionStart` and `UserPromptSubmit` and "ignored (others)", exit 2 blocks `PreToolUse` and `PreTaskExec`, and other exit codes show a warning and proceed. The [hook types](https://kiro.dev/docs/hooks/types/) page agrees: for `PreToolUse`, exit 2 blocks and returns stderr to the model; for `PostToolUse`, exit 0 means only "Hook succeeded"; for `Stop`, exit 0 without a continue decision leaves the response finished, while exit 1 or a `decision: "block"` JSON on stdout starts another agent turn. The live runs match: the commit gate's stderr reached the agent (E3), while neither the after-rework output (E4) nor the suggestion (E5) reached it.
+
+`confirm` (E5): a `Stop` command hook's `confirm` block reaches an ACP client as a `session/request_permission` whose title is the question and whose options are the hook's own, sent as `allow_once` (`run: true`) and `reject_once` (`run: false`); `confirmCommand` printing `{"skip":true}` sends nothing. Choosing the `run: false` option started an extra agent turn with no task in both runs that tried it. The original plain hook was therefore invisible. On 2026-11-17 the suggestion hook adopted the documented `confirmCommand` path, with one acknowledgment option (`Got it`, `run: true`). The question carries the suggestion itself; acknowledgment only runs the existing read-only suggestion command and does not open an inspection. This uses the working E5 approve path without the experiment's `run: false` dismissal option. Closing or rejecting the UI prompt may still reproduce Kiro's extra-turn behavior; that remains a host limitation.
+
+`scripts/fagan-hook.mjs hook suggest-confirm` captures the built CLI's `hook suggest` output (same stdin/cwd, argument-array spawn, 20-second bound). A nonempty successful result becomes `{ question, options }`; an empty result, missing build or failed check becomes `{ skip: true }`. Diagnostics stay on stderr. No new state or model call is needed. If Kiro itself times out the confirmation command, the static fallback explicitly says the check could not run and gives the manual command. Sources rechecked: [hooks schema and confirmation prompts](https://kiro.dev/docs/hooks/) and [hook actions](https://kiro.dev/docs/hooks/actions/). Local tests cover the adapter; live verification of this exact acknowledgment variant is tracked in `docs/experiments.md`.
 
 ### suggest-inspection
 
@@ -335,18 +341,32 @@ All three hooks use the documented v1 file format with one hook per file, a comm
   "hooks": [
     {
       "name": "Suggest a Fagan inspection",
-      "description": "After each agent turn, suggest asking the moderator agent to open an inspection when the working tree has more than suggestThresholdLoc changed lines against HEAD (.fagan/config.json) that no open inspection covers. Prints nothing otherwise and always exits 0.",
+      "description": "After each agent turn, show an inspection suggestion when changed lines exceed suggestThresholdLoc and no open inspection covers them. Acknowledgment does not open an inspection.",
       "trigger": "Stop",
-      "action": { "type": "command", "command": "node scripts/fagan-hook.mjs hook suggest" },
+      "action": {
+        "type": "command",
+        "command": "node scripts/fagan-hook.mjs hook suggest"
+      },
       "timeout": 30,
-      "enabled": true
+      "enabled": true,
+      "confirm": {
+        "question": "Fagan's Ghost could not check this diff. Run npm run build and node scripts/fagan-hook.mjs hook suggest to check manually. This acknowledgment does not open an inspection.",
+        "confirmCommand": "node scripts/fagan-hook.mjs hook suggest-confirm",
+        "options": [
+          {
+            "id": "acknowledge",
+            "label": "Got it",
+            "run": true
+          }
+        ]
+      }
     }
   ]
 }
 ```
 
 - `Stop` fires at the end of every agent turn on every surface; `PostTaskExec` fires only after spec tasks (PLAN.md section 11.1).
-- `hook suggest` always exits 0 (FM-R15.3), so its one-line suggestion goes into the agent's context and never interrupts the session.
+- The dynamic confirmation question displays the suggestion before `hook suggest` runs. No question appears when there is nothing to suggest. Acknowledgment does not start the moderator.
 - `timeout` 30: the command runs `git diff` and reads the store, without the build or tests.
 
 ### commit-gate
@@ -392,9 +412,9 @@ All three hooks use the documented v1 file format with one hook per file, a comm
 }
 ```
 
-- Matcher `@fagan/record_rework` is the documented `@<server>/<tool>` selector. V3 payloads name the tool `mcp_fagan_record_rework`; whether the selector matches it is E4.
-- `follow-up --latest` runs follow-up on the highest-numbered inspection in Rework or FollowUp, prints the result and exits 0 (FM-R15.4), so the agent sees which majors still block.
-- `timeout` 1260 seconds (RA-R6.5). Follow-up runs the configured build and then the tests, each as its own command with `commandTimeoutMs` (600000 ms in `.fagan/config.json`, FM-R2.8). The worst case is 2 x 600 s = 1200 s, plus 60 s for Node start-up, git and store reads. With this timeout, fagan's own runner stops a slow build or test run first: follow-up then stores nothing (FM-R1.3) and the CLI prints `{ code: "COMMAND_TIMEOUT", message }` to stderr and exits 1 (FM-R15.7), which the hook actions page says reaches the agent. A shorter hook timeout could end the hook before that, and the agent would not learn why follow-up gave no result. Normal runs are far shorter: FEAT-001 measured build plus tests at about 33 to 36 s on this machine. The 60 s default would leave less than a 2x margin, and the test suite grows with each step.
+- Matcher `@fagan/record_rework` is the documented `@<server>/<tool>` selector. V3 payloads name the tool `mcp_fagan_record_rework`, and E4 showed live that the selector matches it: the hook ran after a real `record_rework` call over ACP (docs/experiments.md E4).
+- `follow-up --latest` runs follow-up on the highest-numbered inspection in Rework or FollowUp, prints the result and exits 0 (FM-R15.4). The follow-up attempt is stored either way (E4: it verified the fixed major and closed the scratch inspection). The design assumed the agent sees the printed result; in CLI V3 a `PostToolUse` hook's stdout is ignored, and in E4 the agent said it was shown no hook output, so the Author or the moderator reads the result with `follow_up` or `metrics` instead.
+- `timeout` 1260 seconds (RA-R6.5); E12 showed live that the unit is seconds. Follow-up runs the configured build and then the tests, each as its own command with `commandTimeoutMs` (600000 ms in `.fagan/config.json`, FM-R2.8). The worst case is 2 x 600 s = 1200 s, plus 60 s for Node start-up, git and store reads. With this timeout, fagan's own runner stops a slow build or test run first: follow-up then stores nothing (FM-R1.3) and the CLI prints `{ code: "COMMAND_TIMEOUT", message }` to stderr and exits 1 (FM-R15.7). The actions page's general text says that stderr reaches the agent; its CLI list and the hook types page say a non-zero `PostToolUse` exit shows a warning to the user and proceeds, and E12 saw no such warning reach an ACP client. A shorter hook timeout could end the hook before that, and nobody would learn why follow-up gave no result. Normal runs are far shorter: FEAT-001 measured build plus tests at about 33 to 36 s on this machine. The 60 s default would leave less than a 2x margin, and the test suite grows with each step.
 
 ## Hook launcher
 
@@ -424,9 +444,9 @@ Risk: if the test suite grows past about 120 s, or a loaded machine doubles it, 
 
 `kiro-cli agent validate --path` exited 0 with no output for all five agents, and `kiro-cli agent list` listed all five as `Workspace (v3 format)` (docs/experiments.md E11). Probes on throwaway copies in a temp folder showed what the validator checks: it rejected a `tools` value of the wrong JSON type and a `file://` prompt that does not exist, and it accepted an unknown top-level field, an unknown capability name, an unknown effect and the CLI 2.x field `allowedTools`. So `kiro-config.test.ts` parses every agent and hook file with strict zod schemas that list the documented fields, capabilities, effects and triggers (RA-R9.1), and checks scopes and rules itself.
 
-## Experiments still to run (FEAT-003)
+## Experiments (FEAT-003)
 
-The docs answer some of these on paper. FEAT-003 runs each one live in a scratch repo under the system temp dir and records the result in `docs/experiments.md`. The fallbacks are from PLAN.md section 2.4.
+The docs answer some of these on paper. FEAT-003 ran each one live in a scratch repo under the system temp dir and recorded the result in `docs/experiments.md`. The fallbacks are from PLAN.md section 2.4.
 
 | ID | Question | What the docs say | Fallback if it fails |
 | --- | --- | --- | --- |
@@ -449,10 +469,19 @@ Results from FEAT-003 pass A (2026-11-16, kiro-cli 3.3.0, `docs/experiments.md` 
 - Workspace trust over ACP: no trust prompt or trust request; the scratch repo's agents, MCP server and hooks loaded, and `~/.kiro/workspace-roots/` was not created.
 - Every session sent one `_kiro/customAgent/config_error` per file in `.kiro/agents/prompts/` (`AgentFileFormatError: No front matter found`): Kiro also reads `.md` files under `.kiro/agents/` as agent files. The five JSON agents still loaded. Fixed in FEAT-005 by moving the prompts to `.kiro/agent-prompts/` (section "Prompt folder"); a session after the move got no `config_error`.
 
+Results from FEAT-003 pass B (2026-11-16, kiro-cli 3.3.0, `docs/experiments.md` has the commands and output):
+
+- E4: matcher `@fagan/record_rework` fired for a live `record_rework` call (hook `tool_name` `mcp_fagan_record_rework`); the after-rework hook ran follow-up, which verified the fixed major and closed the scratch inspection. No fallback; `after-rework.json` and the RA-R6.3 test are unchanged. The default agent first loads MCP tools with Kiro's built-in `tool_load` tool (hook `tool_name` `tool_load`, no prompt), then calls the MCP tool by its own name, so no wrapper hides it from matchers. MCP calls from the default agent ask the client, as the permissions page says.
+- E5: a `confirm` block works over ACP as a `session/request_permission`, but dismissing it started an extra agent turn; this repo keeps no `confirm` (section "Hooks"). Found with it: CLI V3 ignores `Stop` and `PostToolUse` stdout, so neither the suggestion nor the follow-up result reaches the agent on this surface. Left open for the orchestrator (section "Hooks").
+- E7: `_meta.kiro.modeId` on `session/new` selects the moderator mode. The moderator started the scribe as a sub-agent (ACP `toolCallId` prefix `invoke_subagent_`, hook `tool_name` `subagent_scribe`); the sub-agent's tool calls stream into the parent session and run the workspace hooks with the parent's `session_id`. Depth tested: 1; deeper nesting is ruled out by this repo's config.
+- E8: the parent allow rules work as designed (section "Permission evaluation and E8").
+- E12: `timeout` is in seconds; a timed-out hook gets SIGTERM and Kiro still reports it as `completed`, with no message to the client or the agent. Hooks for one trigger run one after another.
+- No agent called the `code` tool in E7 or E8.
+
 Known open risks for FEAT-003 and FEAT-004:
 
 - Workspace trust: interactive CLI V3 asks to trust a workspace before loading its hooks, agents, MCP servers and steering (permissions page). Trust is the human's decision; no agent writes a trust record.
-- The `read` tag includes `code`, which the tools page also lists under `write`. The `fs_write` deny rule applies to write tools; whether `code` ever writes through that check is not stated on the pages read.
+- The `read` tag includes `code`, which the tools page also lists under `write`. The `fs_write` deny rule applies to write tools; whether `code` ever writes through that check is not stated on the pages read. No role agent called `code` in FEAT-003; FEAT-004 should note any call.
 
 ## Deviations from PLAN.md
 

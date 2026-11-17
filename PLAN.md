@@ -4,8 +4,8 @@ Kiroween 2026, category Resurrection. This file is the plan for step 1 of the wo
 
 ## 0. Status and approval gate
 
-- Status: **approved; step 2 in progress.**
-- The plan was approved with the decisions listed under section 23. Step 2 (section 19) has started: the workspace scaffold, steering files and the `fagan-mcp` spec exist; the server itself is being built next.
+- Status: **approved; step 2 complete; step 3 in progress.**
+- The plan was approved with the decisions listed under section 23. Step 2 is committed and verified. Step 3 has five role agents, hooks and recorded live experiments; the real repo inspection remains pending. The 2026-11-17 continuation uses Codex through T3 Code for implementation and keeps Kiro runtime verification separate (docs/experiments.md).
 - Open questions that still need your answer are in section 23.
 
 ## 1. Goal and framing

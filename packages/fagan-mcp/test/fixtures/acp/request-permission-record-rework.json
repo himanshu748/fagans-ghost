@@ -1,0 +1,55 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "session/request_permission",
+  "params": {
+    "sessionId": "sess_3ae60fc2-7bdc-4aa6-9601-a6aa549ed124",
+    "toolCall": {
+      "toolCallId": "toolu_bdrk_01546VNFgk8RMnbCCWboqpqq",
+      "status": "pending",
+      "title": "@fagan/record_rework"
+    },
+    "options": [
+      {
+        "optionId": "accept",
+        "name": "Allow",
+        "kind": "allow_once"
+      },
+      {
+        "optionId": "always-accept",
+        "name": "Always allow",
+        "kind": "allow_always"
+      },
+      {
+        "optionId": "reject",
+        "name": "Deny",
+        "kind": "reject_once"
+      },
+      {
+        "optionId": "always-reject",
+        "name": "Always deny",
+        "kind": "reject_always"
+      }
+    ],
+    "_meta": {
+      "kiro": {
+        "toolId": "mcp_fagan_record_rework",
+        "agentManagesTrust": true,
+        "consent": {
+          "capability": "mcp",
+          "resource": "fagan/record_rework",
+          "askType": "implicit",
+          "workspaceRoot": "@REPO@"
+        },
+        "consentRound": 1,
+        "mcpTool": {
+          "version": 1,
+          "identity": {
+            "serverName": "fagan",
+            "toolName": "record_rework"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "session_id": "sess_3ae60fc2-7bdc-4aa6-9601-a6aa549ed124",
+  "hook_event_name": "PostToolUse",
+  "cwd": "@REPO@",
+  "tool_name": "mcp_fagan_record_rework",
+  "tool_input": {
+    "inspection_id": "insp-0001",
+    "role": "author",
+    "items": [
+      {
+        "defect_id": "D001",
+        "resolution": "fixed",
+        "note": "sub now returns a - b; the extra + 1 was removed from src/calc.ts line 6."
+      }
+    ]
+  },
+  "tool_response": "{\"items\":[{\"defect_id\":\"D001\",\"resolution\":\"fixed\",\"recorded_at\":\"2026-11-16T17:25:05.261Z\"}],\"open_majors\":1}"
+}

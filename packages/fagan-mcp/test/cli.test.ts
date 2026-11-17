@@ -383,6 +383,15 @@ describe("fagan follow-up, abandon, export", () => {
     expect(fagan(root, ["follow-up", ID]).status).toBe(0);
   });
 
+  it("FM-R15.4 the recorded record_rework PostToolUse payload on stdin runs follow-up (E4)", async () => {
+    const root = repo();
+    await toReworkWithMajor(root);
+    const r = fagan(root, ["follow-up", "--latest"], recorded("post-tool-use-record-rework.json", root));
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ inspection_id: ID, passed: false, blocking: ["D001"] });
+    expect((await readEvents(root, ID)).at(-1)).toMatchObject({ tool: "cli:follow-up", role: "human" });
+  });
+
   it("FM-R15.5 FM-R15.7 abandon needs a valid reason", async () => {
     const root = repo();
     await toReworkWithMajor(root);

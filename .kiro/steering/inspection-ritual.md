@@ -21,3 +21,7 @@ Use this as `#inspection-ritual` or `/inspection-ritual` in chat. It is the step
 8. **Report.** Export again and open `report.json` in the Inspection Room.
 
 Never invent defects or readings to fill a step. If an agent cannot do a step, say so and stop.
+
+## Inspection suggestion
+
+The Stop hook shows a suggestion in a confirmation question when an uncovered diff exceeds the configured threshold. `Got it` acknowledges the notice; it does not open an inspection or approve rework. Ask the moderator to begin the ritual when ready. If the prompt is unavailable, run `node scripts/fagan-hook.mjs hook suggest` after building.

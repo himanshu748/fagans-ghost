@@ -69,6 +69,11 @@ const HookSchema = z.strictObject({
   action: z.strictObject({ type: z.literal("command"), command: z.string().min(1) }),
   timeout: z.int().min(1),
   enabled: z.literal(true),
+  confirm: z.strictObject({
+    question: z.string().min(1),
+    confirmCommand: z.string().min(1),
+    options: z.array(z.strictObject({ id: z.string(), label: z.string(), run: z.boolean() })).min(1),
+  }).optional(),
 });
 const HookFileSchema = z.strictObject({ version: z.literal("v1"), hooks: z.array(HookSchema).length(1) });
 type Hook = z.infer<typeof HookSchema>;
@@ -369,6 +374,12 @@ describe("hooks (.kiro/hooks)", () => {
   it("RA-R6.1 suggest-inspection runs hook suggest when the agent stops", () => {
     expect(hook("suggest-inspection")).toMatchObject({ trigger: "Stop", action: { command: "node scripts/fagan-hook.mjs hook suggest" }, timeout: 30 });
     expect(hook("suggest-inspection").matcher).toBeUndefined();
+    expect(hook("suggest-inspection").confirm).toMatchObject({
+      confirmCommand: "node scripts/fagan-hook.mjs hook suggest-confirm",
+      options: [{ id: "acknowledge", label: "Got it", run: true }],
+    });
+    expect(hook("commit-gate").confirm).toBeUndefined();
+    expect(hook("after-rework").confirm).toBeUndefined();
   });
 
   it("RA-R6.2 commit-gate runs hook gate before every shell tool call", () => {

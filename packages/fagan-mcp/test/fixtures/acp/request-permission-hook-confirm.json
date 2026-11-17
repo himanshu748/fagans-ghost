@@ -1,0 +1,25 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "session/request_permission",
+  "params": {
+    "sessionId": "sess_5a249b67-c3fc-41de-b4cb-6378b9a393af",
+    "toolCall": {
+      "toolCallId": "hook-confirm-fceced92-9dea-4cd3-96bd-0a06ce338513",
+      "status": "pending",
+      "title": "E5 dynamic question: fagan: 10 changed lines against HEAD (threshold 5) and no inspection covers them. Consider asking the moderator agent to open an inspection with open_inspection."
+    },
+    "options": [
+      {
+        "optionId": "open",
+        "name": "Show the suggestion",
+        "kind": "allow_once"
+      },
+      {
+        "optionId": "dismiss",
+        "name": "Not now",
+        "kind": "reject_once"
+      }
+    ]
+  }
+}

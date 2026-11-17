@@ -1,0 +1,26 @@
+{
+  "recordedAt": "2026-11-17T04:50:49.359Z",
+  "surface": "Node MCP SDK client over local stdio; no Kiro role agent or model call",
+  "request": {
+    "name": "open_inspection",
+    "arguments": {
+      "role": "moderator",
+      "title": "Whole-repository size preflight",
+      "base": "001cf80",
+      "head": "HEAD",
+      "include_untracked": false
+    }
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"code\":\"SIZE_LIMIT_EXCEEDED\",\"message\":\"changed LOC 12483 is over the limit 1500\",\"details\":{\"changed_loc\":12483,\"limit\":1500}}"
+      }
+    ],
+    "isError": true
+  },
+  "inspectionDirectoriesBefore": [],
+  "inspectionDirectoriesAfter": [],
+  "resolvedHead": "c6d3e7514858ba7f2f2a8afc6823b3087688a043"
+}
