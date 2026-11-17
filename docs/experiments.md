@@ -697,3 +697,36 @@ repo), property-based tests and hook/agent configuration checks. Vitest reported
 49.06 seconds for the final suite. `npm run build` and `git diff --check` passed.
 The initial unchanged baseline had 221 passing tests. The fixture contract
 run does not replace the blocked Kiro role-agent inspection.
+
+## Codex continuation: real meeting, viewer and portable power
+
+The later user-authorized Codex run did produce the real inspection that the
+quota-blocked Kiro run could not. See [insp-0001 provenance](inspections/insp-0001.md).
+D001 was logged as an actual inspector finding, then disproved by actual Git
+behavior. Its false-positive investigation is retained and no automatic waiver
+is inferred. At that point the inspection remained in Rework pending its human Author;
+the later approval and follow-up are recorded below.
+
+The Inspection Room now loads that actual export. Browser validation found and
+fixed a file input outside landmarks, an unfocusable listing scroll region,
+a heading-level jump and a mobile grid overflowing its viewport. A same-time
+event test also exposed the risk of revealing future readings when projection
+used timestamps alone; it now follows sequence IDs. See [verification](verification.md).
+The [power scratch test](power-verification.md) exposed and fixed relocated
+checklist and package-manifest paths. It establishes installed stdio behavior,
+not native Kiro power activation.
+
+An actual, deliberately small [conversational-code comparison](experiments/vibe-comparison/README.md)
+retains a one-pass sketch and observed results against the specified gate. It
+is not an independent benchmark or a Kiro-native Vibe-mode run.
+
+## Author-approved closure of insp-0001
+
+On 2026-11-17 the human Author selected “Waive D001 with that reason and run
+follow-up.” Codex relayed the exact approved false-positive reason through
+`record_rework`. Actual `follow_up` ran the configured build and tests, both
+passed, and returned Closed with D001 waived and no blocking IDs. Metrics and
+JSON/text exports were refreshed through MCP. The final demo is a byte copy
+of that closed export; it does not relabel the false positive as a repair.
+See [provenance](inspections/insp-0001.md) and its decision receipt. This was
+an explicit Codex-driven follow-up, not a new live Kiro after-rework hook run.

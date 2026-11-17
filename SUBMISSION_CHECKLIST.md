@@ -1,0 +1,110 @@
+# Submission checklist
+
+Prepared for **Kiroween 2026, Resurrection**. Nothing has been published or submitted by this build. The Author performs the public actions below.
+
+The [official rules](https://kiroween.devpost.com/rules), checked November 17, 2026, give a submission deadline of **December 4, 2026 at 2:00 PM PST**: December 4 at 22:00 UTC, or **December 5 at 03:30 IST**. The rules were updated November 16. The older `kiro.devpost.com` address describes a different 2025 event; use `kiroween.devpost.com` for this entry.
+
+## Ready-to-submit record
+
+| Item | Current state / Author action |
+| --- | --- |
+| Public GitHub repository | Not created or pushed. Final URL: `https://github.com/YOUR_GITHUB_USERNAME/fagans-ghost` |
+| License | Root [LICENSE](LICENSE) is MIT. Verify GitHub detects it and shows it in About after publication |
+| Root `.kiro/` | Specs, hooks, steering, agents and MCP settings exist. Run `npm run check:repo`, confirm they are committed and inspect them on GitHub |
+| Functional app | Local viewer implemented. Hosted URL pending: `https://YOUR_GITHUB_USERNAME.github.io/fagans-ghost/` |
+| Description | [DEVPOST_STORY.md](DEVPOST_STORY.md); update remaining-state paragraph after final verification |
+| YouTube video | Not recorded or uploaded. Public URL: `YOUR_PUBLIC_YOUTUBE_URL`; plan in [VIDEO_SHOTLIST.md](VIDEO_SHOTLIST.md) |
+| Kiro write-up | [KIRO_USAGE.md](KIRO_USAGE.md); includes actual Kiro experiments, Codex provenance and missing IDE checks |
+| Category | Resurrection |
+| Student bonus | Candidate only; eligibility and personal fields below remain unconfirmed |
+| Blog / Social Blitz | Optional, Author-written and Author-published; URLs pending if pursued |
+| Final Devpost submission | Not performed |
+
+## Product and evidence gates
+
+- [x] Human Author explicitly waived D001 as a false positive; the exact approved reason is recorded. It is not labeled a verified repair.
+- [x] Actual follow-up passed build/tests and closed insp-0001; JSON/text were exported. If the full video uses another real inspection, retain its provenance too.
+- [ ] Run Kiro IDE Correctness on all three specs. Record its actual output separately from fast-check test results.
+- [ ] Import the power through the IDE into a scratch repository and verify activation and hooks. The scripted install test alone does not establish native activation.
+- [ ] Verify the final Stop suggestion and full role ceremony with Kiro when access is available. Keep Codex footage labeled if used.
+- [x] Check the final closed export in desktop/mobile layouts, keyboard mode, reduced motion and Report view, including its actual waiver and follow-up.
+- [x] Confirm local checks and a clean staged-source snapshot: fresh `npm ci` and production build pass. See `docs/verification.md`.
+- [ ] Inspect tracked files and exports for secrets or private source before publishing.
+- [ ] Verify public repository, viewer and video access without signing in; verify the hosted demo opens and the report is readable.
+- [ ] Reconcile story, README, video and Devpost form against the final behavior. Keep the pre-existing-resource and AI-assistance disclosures.
+
+## Judging path
+
+| Criterion | Evidence to show |
+| --- | --- |
+| Theme and required Kiro use | Resurrection story plus real CLI/ACP experiments, `.kiro` artifacts and honest runtime labels |
+| Potential impact | One developer's journey from a bounded AI change to an inspectable decision; no invented users or time savings |
+| Technological implementation | Scoped agents, observed hook behavior, deterministic MCP state, requirements-linked properties and portable setup |
+| Design | Complete record navigation, code-pinned findings, clear pending states, keyboard/reduced motion and plain report |
+| Innovation / idea | Formal inspection adapted into distinct agent roles with a human Author and measured record |
+| Presentation | Real end-to-end footage under three minutes, with actual outcome and clear unresolved limitations |
+
+## Student and optional bonus fields
+
+For each participating student, fill these in privately in the submission form. Do not guess eligibility or commit student email addresses:
+
+| Field | Value to supply |
+| --- | --- |
+| LinkedIn profile | `YOUR_LINKEDIN_URL` |
+| Student email | `YOUR_STUDENT_EMAIL` |
+| Year of study | `YOUR_YEAR` |
+| Degree | `YOUR_DEGREE` |
+| Recognised academic institution | `YOUR_SCHOOL` |
+| Current attendance confirmation | Author to confirm |
+
+Optional blog URL: `YOUR_BLOG_URL`. Publish during the submission period and identify the post as part of Kiroween 2026. Optional social URL: `YOUR_SOCIAL_POST_URL`. Its first text must be `#KiroweenHackathon26`; describe an actual Kiro experience in the Author's own words. Do not claim a startup, previous Kiroween participation or a Crew app without supporting facts.
+
+## Manual GitHub and Pages commands
+
+**These commands are for the Author. They create public resources and have not been run.** First finish local validation and inspect the final commit. GitHub CLI must be installed; authenticate only to the account that should own this public project.
+
+```sh
+cd /absolute/path/to/fagans-ghost
+npm ci
+npm test
+npm run build
+npm run test:e2e
+npm run build:power
+npm run test:power
+npm run check:repo
+git status --short
+git log -1 --oneline
+git remote -v
+```
+
+Continue only with the intended committed content and no existing `origin` to a different repository. Replace the username once:
+
+```sh
+FG_GITHUB_OWNER='YOUR_GITHUB_USERNAME'
+FG_GITHUB_REPO='fagans-ghost'
+gh auth login --hostname github.com --git-protocol https
+gh auth status
+gh repo create "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" \
+  --public --source=. --remote=origin \
+  --description "Formal code inspection revived with Kiro roles, a deterministic MCP server and the Inspection Room"
+git push --set-upstream origin HEAD:main
+gh repo edit "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" --default-branch main
+```
+
+Enable GitHub Pages with the prepared manual workflow, then explicitly dispatch it:
+
+```sh
+gh api --method POST "repos/$FG_GITHUB_OWNER/$FG_GITHUB_REPO/pages" \
+  -f build_type=workflow
+gh workflow run pages.yml --repo "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" --ref main
+gh run list --repo "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" --workflow pages.yml
+gh api "repos/$FG_GITHUB_OWNER/$FG_GITHUB_REPO/pages" --jq .html_url
+gh api "repos/$FG_GITHUB_OWNER/$FG_GITHUB_REPO/license" --jq .license.spdx_id
+gh repo view "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" --web
+```
+
+The license readback should say `MIT`. Confirm the Pages workflow succeeds before testing the returned URL; configuration alone is not deployment. If Pages already exists, inspect `gh api "repos/$FG_GITHUB_OWNER/$FG_GITHUB_REPO/pages"` instead of repeating creation; change an existing build type with `--method PUT` only if intended. If an organization requires deployment approval, complete that approval in GitHub.
+
+Update the README viewer placeholder and final submission URLs after verifying the hosted app. Keep the app available throughout judging. The workflow is manual; pushing code alone should not deploy it.
+
+Commands follow the official [repository CLI](https://cli.github.com/manual/gh_repo_create), [Pages API](https://docs.github.com/en/rest/pages/pages#create-a-github-pages-site) and [custom Pages workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) documentation. GitHub Pages supports public repositories on GitHub Free. No paid deployment service is needed.

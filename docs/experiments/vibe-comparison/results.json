@@ -1,0 +1,55 @@
+{
+  "provider": "Codex",
+  "scope": "Disposable post-implementation one-pass sketch versus existing spec implementation; hand-selected cases, no timing claim",
+  "rows": [
+    {
+      "name": "ordinary commit",
+      "command": "git commit -m x",
+      "expected": true,
+      "sketch": true,
+      "specified": true
+    },
+    {
+      "name": "Git config option",
+      "command": "git -c core.pager=cat commit -m x",
+      "expected": true,
+      "sketch": true,
+      "specified": true
+    },
+    {
+      "name": "separated directory option",
+      "command": "git -C \"folder with spaces\" commit -m x",
+      "expected": true,
+      "sketch": true,
+      "specified": true
+    },
+    {
+      "name": "quoted executable letters",
+      "command": "g'i't commit -m x",
+      "expected": true,
+      "sketch": false,
+      "specified": true
+    },
+    {
+      "name": "escaped subcommand letters",
+      "command": "git c\\ommit -m x",
+      "expected": true,
+      "sketch": false,
+      "specified": true
+    },
+    {
+      "name": "echoed words",
+      "command": "echo git commit",
+      "expected": false,
+      "sketch": true,
+      "specified": false
+    },
+    {
+      "name": "status only",
+      "command": "git status --short",
+      "expected": false,
+      "sketch": false,
+      "specified": false
+    }
+  ]
+}

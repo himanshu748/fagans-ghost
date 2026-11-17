@@ -4,8 +4,8 @@ Kiroween 2026, category Resurrection. This file is the plan for step 1 of the wo
 
 ## 0. Status and approval gate
 
-- Status: **approved; step 2 complete; step 3 in progress.**
-- The plan was approved with the decisions listed under section 23. Step 2 is committed and verified. Step 3 has five role agents, hooks and recorded live experiments; the real repo inspection remains pending. The 2026-11-17 continuation uses Codex through T3 Code for implementation and keeps Kiro runtime verification separate (docs/experiments.md).
+- Status: **approved; core, role configuration, viewer and local power implemented; local verification passed; Author-approved waiver and passing follow-up recorded; local implementation and validation complete; Kiro IDE and public-action handoffs remain.**
+- The plan was approved with the decisions listed under section 23. Step 2 is committed and verified. Step 3 has five role agents, hooks and recorded live experiments. The real Codex-role inspection is recorded as insp-0001, Closed after a human-approved false-positive waiver for D001 and passing build/test follow-up. The Inspection Room and power installer are implemented. See docs/verification.md for final checks and outstanding Kiro IDE work. The 2026-11-17 continuation uses Codex through T3 Code for implementation and keeps Kiro runtime verification separate (docs/experiments.md).
 - Open questions that still need your answer are in section 23.
 
 ## 1. Goal and framing
@@ -22,7 +22,7 @@ Fagan's Ghost brings back Michael Fagan's 1976 formal code inspection as a ritua
 
 ### 2.1 Which surface this work runs on
 
-The agent doing the work is the **Kiro CLI V3 harness** (`kiro-cli` 3.2.1) driven over ACP by T3 Code. Per the [ACP docs](https://kiro.dev/docs/cli/acp.md), `kiro-cli acp` starts the V3 harness by default on macOS unless V2-only flags such as `--agent` are passed. The Kiro IDE is not on this machine's PATH, so IDE-only steps are listed for you in section 2.3.
+At planning time, the agent doing the work was the **Kiro CLI V3 harness** (`kiro-cli` 3.2.1) driven over ACP by T3 Code. Per the [ACP docs](https://kiro.dev/docs/cli/acp.md), `kiro-cli acp` starts the V3 harness by default on macOS unless V2-only flags such as `--agent` are passed. The Kiro IDE is not on this machine's PATH, so IDE-only steps are listed for you in section 2.3.
 
 Installed `kiro-cli` subcommands observed on this run: `agent {list, create, edit, validate, migrate, upgrade, set-default}`, `chat`, `mcp {add, remove, list, import, status}`, `powers {install, uninstall}`, `settings`, `crew`, `serve`, `acp`.
 
@@ -65,7 +65,7 @@ Installed `kiro-cli` subcommands observed on this run: `agent {list, create, edi
 The CLI cannot do these. When the work reaches each one, I will stop and ask you to do it.
 
 1. **Spec Correctness (PBT) on each spec.** Open `.kiro/specs/fagan-mcp/`, `.kiro/specs/role-agents/` and `.kiro/specs/inspection-room/` in the Kiro IDE and run the Correctness workflow so Kiro extracts properties from the EARS requirements and links them to tasks ([Correctness docs](https://kiro.dev/docs/specs/correctness/)). Docs mark this IDE only. Commit whatever spec changes the IDE writes. Note: our fast-check tests run under Vitest anywhere (CLI, CI). Only Kiro's spec-level PBT integration is IDE only.
-2. **Second power install path.** In the IDE, open the scratch repo, then Powers panel, "Add Custom Power", "Import power from a folder", and pick `power/` ([install docs](https://kiro.dev/docs/powers/installation/)). The CLI path (`kiro-cli powers install <path>`) is tested by me.
+2. **Second power install path.** In the IDE, open the scratch repo, then Powers panel, "Add Custom Power", "Import power from a folder", and pick `power/` ([install docs](https://kiro.dev/docs/powers/installation/)). The scripted target-local install is tested; native CLI installation remains unverified because the installed command has no workspace scope. No global power installation was performed.
 3. **Hook cross-check.** Confirm the three hooks appear and fire in the IDE. If experiment E1 shows hooks do not fire in the ACP session, the hook demo for the video is recorded in the IDE or in an interactive `kiro-cli` terminal session instead.
 4. **Screenshots and video capture.** IDE screenshots of specs, hooks, agents and the power panel for KIRO_USAGE.md, and the screen recording for the video (section 18).
 5. **Optional.** Foundation steering generation is IDE only. We hand-write steering, so this step is not needed; KIRO_USAGE.md will say why.
@@ -785,7 +785,7 @@ Stretch: dogfood on this repo's own changes from step 3 onward and keep those re
 | Rates measure agent speed, not human reading | Stated plainly in docs and viewer; rate warnings exist to flag implausibly fast agent "preparation" |
 | Commit gate does not cover commits typed in a terminal | Documented as a deliberate choice; the human Author decides |
 | A stale inspection blocks commits | Author waives with reason, or runs `fagan abandon` |
-| Hackathon rules page returned HTTP 403 on this run | Your summary of the rules is the source; you check the [Devpost rules](https://kiro.devpost.com/rules) before submitting |
+| Hackathon rules page returned HTTP 403 on this run | Your summary of the rules is the source; you check the [Devpost rules](https://kiroween.devpost.com/rules) before submitting |
 | Fagan claims may be wrong if quoted from memory | Only cited facts in docs; everything else marked "needs citation" (section 21) |
 | Accidental public action | No push, no repo creation, no Pages, no deploy, no upload, no Devpost; Pages workflow is manual-trigger only |
 
