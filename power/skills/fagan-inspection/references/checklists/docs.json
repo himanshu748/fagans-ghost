@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "fagan-checklist/1",
+  "id": "docs",
+  "title": "Documentation checklist",
+  "items": [
+    { "id": "docs-01", "question": "Is every factual or historical claim either cited or marked \"needs citation\"?", "typeHint": "documentation" },
+    { "id": "docs-02", "question": "Do commands, file paths and option names match the code as it is now?", "typeHint": "documentation" },
+    { "id": "docs-03", "question": "Are numbers, results and examples real outputs rather than invented ones?", "typeHint": "data" },
+    { "id": "docs-04", "question": "Are the steps complete and in an order a new reader can follow?", "typeHint": "documentation" },
+    { "id": "docs-05", "question": "Do links point to the right pages and use descriptive link text?", "typeHint": "documentation" }
+  ]
+}

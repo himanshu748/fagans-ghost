@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "fagans-ghost",
+  "version": "0.1.0",
+  "description": "Restore formal code inspection: fixed roles, measured phases, an honest defect log and the human Author's final word.",
+  "author": { "name": "himanshu748" },
+  "keywords": ["fagan", "inspection", "code-review", "defect-log", "resurrection"],
+  "license": "MIT"
+}

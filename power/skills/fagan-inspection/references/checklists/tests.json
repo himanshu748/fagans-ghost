@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "fagan-checklist/1",
+  "id": "tests",
+  "title": "Tests checklist",
+  "items": [
+    { "id": "tests-01", "question": "Would this test fail if the behaviour it names were broken or reverted?", "typeHint": "logic" },
+    { "id": "tests-02", "question": "Does the test name carry the requirement ID it checks, and does it check that requirement?", "typeHint": "documentation" },
+    { "id": "tests-03", "question": "Are edge cases covered: empty, zero, equal, reversed and maximum inputs?", "typeHint": "logic" },
+    { "id": "tests-04", "question": "Are temp files, folders and processes cleaned up even when the test fails?", "typeHint": "other" },
+    { "id": "tests-05", "question": "Is the test deterministic: fixed clock, no network, no dependence on run order?", "typeHint": "data" }
+  ]
+}

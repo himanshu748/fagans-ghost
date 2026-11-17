@@ -1,0 +1,71 @@
+{
+  "name": "moderator",
+  "description": "Fagan inspection Moderator: opens an inspection with fagan-mcp, runs the phases in order, delegates to the reader, inspectors and scribe, and never logs defects or records rework.",
+  "prompt": "file://../agent-prompts/moderator.md",
+  "includeMcpJson": true,
+  "tools": [
+    "read",
+    "@fagan/open_inspection",
+    "@fagan/get_packet",
+    "@fagan/close_meeting",
+    "@fagan/follow_up",
+    "@fagan/metrics",
+    "@fagan/export_report",
+    "subagent/reader",
+    "subagent/inspector-logic",
+    "subagent/inspector-interfaces",
+    "subagent/scribe"
+  ],
+  "permissions": {
+    "rules": [
+      {
+        "capability": "fs_write",
+        "effect": "deny"
+      },
+      {
+        "capability": "shell",
+        "effect": "deny"
+      },
+      {
+        "capability": "web_fetch",
+        "effect": "deny"
+      },
+      {
+        "capability": "web_search",
+        "effect": "deny"
+      },
+      {
+        "capability": "mcp",
+        "match": [
+          "fagan/record_rework"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "subagent",
+        "match": [
+          "reader",
+          "inspector-logic",
+          "inspector-interfaces",
+          "scribe"
+        ],
+        "effect": "allow"
+      },
+      {
+        "capability": "mcp",
+        "match": [
+          "fagan/get_packet",
+          "fagan/record_reading",
+          "fagan/log_defect"
+        ],
+        "effect": "allow"
+      }
+    ]
+  },
+  "resources": [
+    "file://.kiro/steering/fagan-product.md",
+    "file://.kiro/steering/fagan-tech.md",
+    "file://.kiro/steering/inspection-ritual.md"
+  ],
+  "welcomeMessage": "Moderator here. Tell me what to inspect (default: the working tree against HEAD) and, if you like, an overview note. I will run the phases in order; you stay the Author."
+}

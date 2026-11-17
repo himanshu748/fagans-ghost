@@ -1,0 +1,2 @@
+# The original MCP configuration may contain credentials. Keep its backup local.
+/mcp.before-setup.json

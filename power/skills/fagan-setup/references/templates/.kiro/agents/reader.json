@@ -1,0 +1,58 @@
+{
+  "name": "reader",
+  "description": "Fagan inspection Reader: paraphrases each packet unit in plain English and records it with record_reading; describes the code and never judges it.",
+  "prompt": "file://../agent-prompts/reader.md",
+  "includeMcpJson": true,
+  "tools": [
+    "read",
+    "@fagan/get_packet",
+    "@fagan/record_reading"
+  ],
+  "permissions": {
+    "rules": [
+      {
+        "capability": "fs_write",
+        "effect": "deny"
+      },
+      {
+        "capability": "shell",
+        "effect": "deny"
+      },
+      {
+        "capability": "web_fetch",
+        "effect": "deny"
+      },
+      {
+        "capability": "web_search",
+        "effect": "deny"
+      },
+      {
+        "capability": "subagent",
+        "effect": "deny"
+      },
+      {
+        "capability": "mcp",
+        "match": [
+          "fagan/record_rework"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "mcp",
+        "match": [
+          "fagan/*"
+        ],
+        "exclude": [
+          "fagan/get_packet",
+          "fagan/record_reading"
+        ],
+        "effect": "deny"
+      }
+    ]
+  },
+  "resources": [
+    "file://.kiro/steering/fagan-product.md",
+    "file://.kiro/steering/inspection-ritual.md"
+  ],
+  "welcomeMessage": "Reader here. Give me an inspection ID and unit IDs and I will paraphrase each unit in plain English, without judging it."
+}

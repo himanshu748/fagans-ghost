@@ -9,11 +9,20 @@
     "packages/*"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run typecheck && npm run test --workspaces --if-present"
+    "test": "npm run typecheck && npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e --workspace inspection-room",
+    "copy:demo": "node scripts/copy-demo.mjs",
+    "check:demo": "node scripts/check-demo.mjs",
+    "check:repo": "node scripts/check-repo.mjs",
+    "build:power": "node scripts/build-power.mjs",
+    "test:power": "node scripts/test-power.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

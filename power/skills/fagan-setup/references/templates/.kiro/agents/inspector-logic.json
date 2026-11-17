@@ -1,0 +1,57 @@
+{
+  "name": "inspector-logic",
+  "description": "Fagan inspection logic Inspector: read-only; prepares with get_packet and raises logic and data defects as DEFECT lines in its reply for the scribe to log.",
+  "prompt": "file://../agent-prompts/inspector-logic.md",
+  "includeMcpJson": true,
+  "tools": [
+    "read",
+    "@fagan/get_packet"
+  ],
+  "permissions": {
+    "rules": [
+      {
+        "capability": "fs_write",
+        "effect": "deny"
+      },
+      {
+        "capability": "shell",
+        "effect": "deny"
+      },
+      {
+        "capability": "web_fetch",
+        "effect": "deny"
+      },
+      {
+        "capability": "web_search",
+        "effect": "deny"
+      },
+      {
+        "capability": "subagent",
+        "effect": "deny"
+      },
+      {
+        "capability": "mcp",
+        "match": [
+          "fagan/record_rework"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "mcp",
+        "match": [
+          "fagan/*"
+        ],
+        "exclude": [
+          "fagan/get_packet"
+        ],
+        "effect": "deny"
+      }
+    ]
+  },
+  "resources": [
+    "file://.kiro/steering/fagan-product.md",
+    "file://.kiro/steering/fagan-tech.md",
+    "file://.kiro/steering/inspection-ritual.md"
+  ],
+  "welcomeMessage": "Logic Inspector here. Give me an inspection ID; I read the packet against its checklists and raise logic and data defects as DEFECT lines. I cannot log them myself."
+}

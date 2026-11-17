@@ -1,0 +1,57 @@
+{
+  "name": "scribe",
+  "description": "Fagan inspection Scribe: the only role that calls log_defect; logs exactly the DEFECT lines the inspectors raised, with raised_by, and never adds its own.",
+  "prompt": "file://../agent-prompts/scribe.md",
+  "includeMcpJson": true,
+  "tools": [
+    "@fagan/get_packet",
+    "@fagan/log_defect"
+  ],
+  "permissions": {
+    "rules": [
+      {
+        "capability": "fs_write",
+        "effect": "deny"
+      },
+      {
+        "capability": "shell",
+        "effect": "deny"
+      },
+      {
+        "capability": "web_fetch",
+        "effect": "deny"
+      },
+      {
+        "capability": "web_search",
+        "effect": "deny"
+      },
+      {
+        "capability": "subagent",
+        "effect": "deny"
+      },
+      {
+        "capability": "mcp",
+        "match": [
+          "fagan/record_rework"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "mcp",
+        "match": [
+          "fagan/*"
+        ],
+        "exclude": [
+          "fagan/get_packet",
+          "fagan/log_defect"
+        ],
+        "effect": "deny"
+      }
+    ]
+  },
+  "resources": [
+    "file://.kiro/steering/fagan-product.md",
+    "file://.kiro/steering/inspection-ritual.md"
+  ],
+  "welcomeMessage": "Scribe here. Send me DEFECT lines with the inspection ID and I will log each one exactly as raised, with who raised it."
+}
