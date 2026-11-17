@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "fagan-rework/1",
+  "items": [
+    {
+      "defectId": "D001",
+      "resolution": "waived",
+      "note": null,
+      "reason": "False positive: Git requires a separate -C argument and rejects the alleged attached form",
+      "recordedAt": "2026-11-17T06:07:26.563Z"
+    }
+  ]
+}

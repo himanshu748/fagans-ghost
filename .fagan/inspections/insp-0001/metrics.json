@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "fagan-metrics/1",
+  "computedAt": "2026-11-17T06:08:44.586Z",
+  "changedLoc": 501,
+  "durationsMs": {
+    "planning": 47203,
+    "overview": 50065,
+    "preparation": 146912,
+    "meeting": 422398,
+    "rework": 3730015,
+    "followup": 0
+  },
+  "preparationRateLocPerHour": 12276.737094314964,
+  "inspectionRateLocPerHour": 4269.906580997069,
+  "defectsPerKloc": 1.996007984031936,
+  "majorsPerKloc": 1.996007984031936,
+  "defects": {
+    "total": 1,
+    "major": 1,
+    "minor": 0
+  },
+  "byType": {
+    "logic": 1,
+    "interface": 0,
+    "data": 0,
+    "documentation": 0,
+    "other": 0
+  },
+  "nullReasons": [],
+  "warnings": []
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "fagan-defects/1",
+  "defects": [
+    {
+      "id": "D001",
+      "unitId": "U023",
+      "location": {
+        "file": "packages/fagan-mcp/src/core/gate.ts",
+        "side": "new",
+        "lineStart": 306,
+        "lineEnd": 307
+      },
+      "type": "logic",
+      "class": "missing",
+      "severity": "major",
+      "raisedBy": "inspector-logic",
+      "recordedBy": "scribe",
+      "description": "The directory chain records only a token exactly equal to -C, so Git's attached form -C/path is skipped as an option without recording its target. A git -C/other/repo commit issued from a clean payload repository is checked against that clean repository and can pass while the target repository has an open major.",
+      "checklistItemId": "typescript-05",
+      "loggedAt": "2026-11-17T05:05:35.207Z"
+    }
+  ]
+}

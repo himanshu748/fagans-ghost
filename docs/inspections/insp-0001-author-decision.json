@@ -1,0 +1,94 @@
+{
+  "inspectionId": "insp-0001",
+  "approvalSource": "Human Author message in T3 Code",
+  "approvalText": "Waive D001 with that reason and run follow-up",
+  "execution": "Codex relayed the explicitly approved decision via real stdio MCP; no autonomous Author decision",
+  "decision": {
+    "defectId": "D001",
+    "resolution": "waived",
+    "note": null,
+    "reason": "False positive: Git requires a separate -C argument and rejects the alleged attached form",
+    "recordedAt": "2026-11-17T06:07:26.563Z"
+  },
+  "followUp": {
+    "n": 1,
+    "at": "2026-11-17T06:08:11.581Z",
+    "checks": {
+      "build": {
+        "ran": true,
+        "passed": true,
+        "exitCode": 0,
+        "durationMs": 1328
+      },
+      "tests": {
+        "ran": true,
+        "passed": true,
+        "exitCode": 0,
+        "durationMs": 33190
+      }
+    },
+    "defects": [
+      {
+        "defectId": "D001",
+        "severity": "major",
+        "status": "waived"
+      }
+    ],
+    "blocking": [],
+    "passed": true,
+    "blobs": [
+      {
+        "path": ".kiro/specs/fagan-mcp/design.md",
+        "blob": "5e57628fd62fba31a2e9edd948481b9c54a6f13f"
+      },
+      {
+        "path": ".kiro/specs/fagan-mcp/requirements.md",
+        "blob": "89fc5d43be019cc5d8212c2cc183702e300e8389"
+      },
+      {
+        "path": ".kiro/specs/fagan-mcp/tasks.md",
+        "blob": "539aa153e6dfb631417ff1b453ecbbf86b0a704f"
+      },
+      {
+        "path": "docs/experiments.md",
+        "blob": "4d7673d515a9cbaa16717780a0c2069dc48188a3"
+      },
+      {
+        "path": "packages/fagan-mcp/src/cli.ts",
+        "blob": "c6f03a2f8484f75d3df545128a3c6c1a773c2c5e"
+      },
+      {
+        "path": "packages/fagan-mcp/src/core/gate.ts",
+        "blob": "53140e6ca45ac7ae184742cc859d8e1d70b691d7"
+      },
+      {
+        "path": "packages/fagan-mcp/src/core/packet.ts",
+        "blob": "dc7d794e9ad526ce0aa7e5092f6e4d9659d2642e"
+      },
+      {
+        "path": "packages/fagan-mcp/src/service/service.ts",
+        "blob": "cb9553c75534d98a97c46646a725bfefd8d4c9a2"
+      },
+      {
+        "path": "packages/fagan-mcp/test/cli.test.ts",
+        "blob": "a67f9ed14293f81b1d33fb55b60330f3526033d9"
+      },
+      {
+        "path": "packages/fagan-mcp/test/contract.test.ts",
+        "blob": "422ffbc8b121f22c807fc0141e4e182824868e9c"
+      },
+      {
+        "path": "packages/fagan-mcp/test/gate.test.ts",
+        "blob": "2bfb3b5b316b7222376fead5c4ab39c8000b7253"
+      },
+      {
+        "path": "packages/fagan-mcp/test/metrics.property.test.ts",
+        "blob": "eb1b6d2582a6bf448e29e4c9e4dcfe3718709061"
+      },
+      {
+        "path": "packages/fagan-mcp/test/packet.test.ts",
+        "blob": "335a97571b4a67767a0e8e7443509e6b09d27c45"
+      }
+    ]
+  }
+}

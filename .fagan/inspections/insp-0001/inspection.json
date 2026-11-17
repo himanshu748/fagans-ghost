@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "fagan-inspection/1",
+  "id": "insp-0001",
+  "title": "fagan-mcp review v2 fixes (Codex roles)",
+  "range": {
+    "base": "647a96b",
+    "head": "4b4c692",
+    "baseSha": "647a96b648ff96a36d943960e15e36fd5a123d77",
+    "headSha": "4b4c692d3c6f3e6f2c31ae2aa98aabbe876b8740"
+  },
+  "phase": "Closed",
+  "timestamps": {
+    "planningStart": "2026-11-17T04:54:54.988Z",
+    "planningEnd": "2026-11-17T04:55:42.191Z",
+    "overviewStart": "2026-11-17T04:55:42.191Z",
+    "preparationStart": "2026-11-17T04:56:32.256Z",
+    "meetingStart": "2026-11-17T04:58:59.168Z",
+    "meetingEnd": "2026-11-17T05:06:01.566Z",
+    "reworkStart": "2026-11-17T06:07:26.563Z",
+    "followupStart": "2026-11-17T06:08:11.581Z",
+    "closedAt": "2026-11-17T06:08:11.581Z",
+    "abandonedAt": null
+  },
+  "entry": {
+    "build": {
+      "ran": true,
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 1211
+    },
+    "tests": {
+      "ran": true,
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 45626
+    },
+    "size": {
+      "changedLoc": 501,
+      "limit": 1500,
+      "passed": true
+    }
+  },
+  "authorOverview": null,
+  "meetingNotes": "Actual inspection conducted with Codex role agents after user-authorized runtime switch from quota-blocked Kiro. Both inspectors prepared and confirmed after the Reader; Scribe logged the exact final finding. Human Author rework remains pending. Metrics include orchestration waits.",
+  "abandonReason": null
+}

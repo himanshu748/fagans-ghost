@@ -1,0 +1,21 @@
+{
+  "at": "2026-11-17T06:10:42.344Z",
+  "provider": "Codex",
+  "mode": "direct hook evaluation; command string was not executed with git",
+  "inspection": "insp-0001",
+  "phase": "Closed",
+  "payload": {
+    "hook_event_name": "PreToolUse",
+    "cwd": "/Users/himanshujha/code/fagans-ghost",
+    "tool_name": "execute_bash",
+    "tool_input": {
+      "command": "git commit -m inspection-gate-check",
+      "cwd": "/Users/himanshujha/code/fagans-ghost"
+    }
+  },
+  "exitCode": 0,
+  "stdout": "",
+  "stderr": "",
+  "commitsBefore": "11",
+  "commitsAfter": "11"
+}

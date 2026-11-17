@@ -1,0 +1,285 @@
+{
+  "schemaVersion": "fagan-readings/1",
+  "readings": [
+    {
+      "id": "R001",
+      "unitId": "U001",
+      "paraphrase": "The design adds a description of property P8. It says that time-ordered follow-up attempts are used to check whether rework time plus follow-up time equals the interval from the meeting's end to closure or abandonment.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:29.228Z"
+    },
+    {
+      "id": "R002",
+      "unitId": "U002",
+      "paraphrase": "The CLI design now requires both accepted working-tree content and a matching base blob before a file counts as covered. It counts differences between the inspected and current added and deleted lines as rework drift, using the smallest drift across matching inspections. The gate description now distinguishes literal directory words, home-directory forms and shell-expanded words. It resolves known directories in order and uses the payload repository when the target remains unknown or is outside a repository.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:29.589Z"
+    },
+    {
+      "id": "R003",
+      "unitId": "U003",
+      "paraphrase": "The gate-scope list adds shell-expanded directory arguments as a documented case where the payload repository is checked instead of the expanded destination. It states that this can allow a commit into another repository when the payload repository has no open major. The payload-field experiment reference changes from task 15 to task 16.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:29.964Z"
+    },
+    {
+      "id": "R004",
+      "unitId": "U004",
+      "paraphrase": "The property-test table gains P8, linked to the metrics property test and requirements FM-R10.1 and FM-R10.3. The row describes generated attempts ending in closure or abandonment, a total-duration equality, non-negative durations and null values for phases that were not entered.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:30.331Z"
+    },
+    {
+      "id": "R005",
+      "unitId": "U005",
+      "paraphrase": "The suggestion requirement changes how accepted files contribute to the line threshold. A file now needs matching accepted content and a matching inspection base to count as covered. For such a file the count includes added and deleted lines that differ from the inspected diff, so additions made during Rework or while waiting in FollowUp contribute to a later suggestion.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:30.719Z"
+    },
+    {
+      "id": "R006",
+      "unitId": "U006",
+      "paraphrase": "The commit-gate requirement adds rules for interpreting directory arguments. Literal words are used after quote removal, while an eligible leading tilde becomes the home directory. If unresolved shell syntax leaves the target unknown, or the resulting directory is outside a repository, the gate checks the repository associated with the payload working directory.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:31.085Z"
+    },
+    {
+      "id": "R007",
+      "unitId": "U007",
+      "paraphrase": "The task list adds a completed review-v2 section with four items: gate directory fallback and home-directory expansion, rework drift in suggestion counts, the task-16 reference in the scope documentation, and the property relating rework and follow-up totals to the inspection end time. It also lists the associated requirement IDs.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:31.437Z"
+    },
+    {
+      "id": "R008",
+      "unitId": "U008",
+      "paraphrase": "The experiment document adds a review-v2 account covering directory-word handling, rework-drift counting, a task-number change and the new metrics property. It names the related tests, records the command outcomes reported by the earlier experiment, and describes two temporary property-test mutations. It also distinguishes the newline-marker assertion over stdio from the in-process case where the marker is true.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:31.848Z"
+    },
+    {
+      "id": "R009",
+      "unitId": "U009",
+      "paraphrase": "The CLI imports the operating system's home-directory function. Its path import is expanded to include the absolute-path predicate alongside the existing path-resolution function.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:32.248Z"
+    },
+    {
+      "id": "R010",
+      "unitId": "U010",
+      "paraphrase": "The CLI adds gateRoot to the functions it imports from the service module. The surrounding imports continue to include gateBlocks and the inspection service operations.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:32.654Z"
+    },
+    {
+      "id": "R011",
+      "unitId": "U011",
+      "paraphrase": "The CLI adds a homeDir helper that returns a nonempty home-directory string or null. It also adds commitRoot, which walks directory arguments from the supplied base. A null argument makes the current target unknown; a later absolute argument establishes a new known target. The function then resolves a repository root, using the base repository when the target is unknown or does not identify a repository.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:33.045Z"
+    },
+    {
+      "id": "R012",
+      "unitId": "U012",
+      "paraphrase": "The hook passes the detected home directory into gitCommitTargets. Instead of directly reducing each directory chain into a path, it resolves each chain through commitRoot and collects distinct non-null repository roots. It then asks gateBlocks for each root and retains blocks that have not already been collected for the same inspection and repository.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:33.477Z"
+    },
+    {
+      "id": "R013",
+      "unitId": "U013",
+      "paraphrase": "The gate module's introductory comment adds the directory-word interpretation rules. It describes quote removal, expansion of an eligible leading tilde, and null results for syntax whose shell expansion is not evaluated. It says the CLI uses the payload working directory for those null targets.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:34.109Z"
+    },
+    {
+      "id": "R014",
+      "unitId": "U014",
+      "paraphrase": "The tokenizer introduces a ShellWord object containing text, a literal flag and a tilde flag, plus a set of unquoted expansion characters. shellSegments becomes a text-only projection of the new shellWordSegments function. That function stores and resets the flags for each word and adds a helper that turns off tilde expansion when quoting occurs inside the tilde prefix.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:34.681Z"
+    },
+    {
+      "id": "R015",
+      "unitId": "U015",
+      "paraphrase": "When the tokenizer encounters dollar-parenthesis or backtick command substitution, it now parses the nested command into ShellWord segments rather than string segments. Both branches also mark the containing word as nonliteral while retaining the existing position-advance behavior.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:35.195Z"
+    },
+    {
+      "id": "R016",
+      "unitId": "U016",
+      "paraphrase": "The tokenizer calls quotedChar before reading the contents of a single-quoted string. The surrounding code continues to append the quoted contents to the current word.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:35.771Z"
+    },
+    {
+      "id": "R017",
+      "unitId": "U017",
+      "paraphrase": "The tokenizer calls quotedChar when it enters a double-quoted string. It then continues through the existing loop that reads the string's contents.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:36.250Z"
+    },
+    {
+      "id": "R018",
+      "unitId": "U018",
+      "paraphrase": "Inside the double-quote loop, an unescaped dollar sign now marks the current word as nonliteral before the character is appended. The surrounding branch still advances through the input one character at a time.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:36.745Z"
+    },
+    {
+      "id": "R019",
+      "unitId": "U019",
+      "paraphrase": "When a backslash escapes a character other than a newline, the tokenizer now calls quotedChar before appending that character. It continues to mark the word as present after the append.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:37.189Z"
+    },
+    {
+      "id": "R020",
+      "unitId": "U020",
+      "paraphrase": "The unquoted-character path now marks dollar signs and configured expansion characters as nonliteral. A tilde at the start of a word enables the tilde flag and begins a tilde prefix; an unquoted slash ends that prefix. The character is then appended through the existing word-building path.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:37.643Z"
+    },
+    {
+      "id": "R021",
+      "unitId": "U021",
+      "paraphrase": "A literalWord helper constructs ShellWord objects from strings. gitCommitDirs changes its input and return types from string arrays to ShellWord arrays, and its directory accumulator now stores those objects. The first loop reads each word's text when identifying leading assignments and wrappers.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:38.124Z"
+    },
+    {
+      "id": "R022",
+      "unitId": "U022",
+      "paraphrase": "Wrapper-option parsing now reads option text from ShellWord objects. For a long option with an equals sign, a captured directory value inherits the option's literal flag and has its tilde flag set to false. For a separate directory operand, the parser stores the following ShellWord object itself.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:38.619Z"
+    },
+    {
+      "id": "R023",
+      "unitId": "U023",
+      "paraphrase": "The Git-command portion of gitCommitDirs reads the program and option names from ShellWord text. It compares the text after a double dash with commit, returns the accumulated directories when it encounters the commit subcommand, and stores the following ShellWord as a directory when the option text is exactly -C. Option advancement still depends on whether the option takes a separate value.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:39.080Z"
+    },
+    {
+      "id": "R024",
+      "unitId": "U024",
+      "paraphrase": "isGitCommitSegment now wraps its string inputs as literal ShellWord objects. The new dirWordPath function returns null for nonliteral words, returns ordinary literal text unchanged, and expands supported tilde forms when a home directory is available. gitCommitTargets accepts that home directory, obtains flagged word segments, keeps commit directory chains and maps each directory word to its path or null.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:39.556Z"
+    },
+    {
+      "id": "R025",
+      "unitId": "U025",
+      "paraphrase": "The packet module adds reworkDriftLoc to compare two diffs for one file. Binary or excluded files contribute zero. For other files it builds balances keyed by changed-line kind, newline-at-end flag and text, adding counts from the inspected diff and subtracting counts from the current diff. The result is the sum of the absolute balances.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:40.140Z"
+    },
+    {
+      "id": "R026",
+      "unitId": "U026",
+      "paraphrase": "The service module adds imports for parseUnifiedDiff and the DiffFile type. The surrounding imports remain the clock, error, follow-up and JSON helpers.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:40.688Z"
+    },
+    {
+      "id": "R027",
+      "unitId": "U027",
+      "paraphrase": "The service module adds reworkDriftLoc to its packet-helper import alongside countChangedLoc and buildPacket.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:41.133Z"
+    },
+    {
+      "id": "R028",
+      "unitId": "U028",
+      "paraphrase": "The service module introduces an AcceptedFile interface for content accepted by a closed inspection. It stores the packet file's base blob hash and an optional parsed diff representing what the inspection read.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:41.535Z"
+    },
+    {
+      "id": "R029",
+      "unitId": "U029",
+      "paraphrase": "Suggestion coverage changes from sets of accepted hashes to a nested map containing accepted content, its base hash and its inspected diff. Closed inspection patches are parsed and associated with their passing follow-up blobs. For each current file, the service finds accepted entries with matching content and base, counts the minimum rework drift when matches exist, and otherwise counts all changed lines. The suggestion text now reports the number of covered files and the drift they contribute.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:41.882Z"
+    },
+    {
+      "id": "R030",
+      "unitId": "U030",
+      "paraphrase": "The service extracts repository-root lookup into gateRoot. It returns null when lookup reports that the directory is outside a Git repository and rethrows other errors. gateBlocks calls the helper and returns an empty block list for a null root before continuing with inspection-store processing.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:42.222Z"
+    },
+    {
+      "id": "R031",
+      "unitId": "U031",
+      "paraphrase": "The CLI tests add homedir to their operating-system imports and relative to their path imports. The existing tmpdir and join imports remain.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:42.536Z"
+    },
+    {
+      "id": "R032",
+      "unitId": "U032",
+      "paraphrase": "The CLI tests add the NOTES fixture to the values imported from the shared fixture module.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:42.869Z"
+    },
+    {
+      "id": "R033",
+      "unitId": "U033",
+      "paraphrase": "The CLI tests add cases for directory words containing parameters, substitutions, tildes and literal unresolved paths. The new test creates an inspection with an open major and expects gate exit code 2 for the listed commands. It also describes checks starting from a clean repository and distinguishes an absolute directory after an unknown value from a relative directory after one. An existing missing-directory case gains an explanatory comment.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:43.270Z"
+    },
+    {
+      "id": "R034",
+      "unitId": "U034",
+      "paraphrase": "The suggestion test for a closed inspection changes its configured threshold from zero to two. The added comment relates that threshold to a one-line rewrite, counted as two changed lines of rework drift.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:43.655Z"
+    },
+    {
+      "id": "R035",
+      "unitId": "U035",
+      "paraphrase": "A new CLI test adds twenty exported constants during rework, records the rework and invokes follow-up. It expects a suggestion reporting twenty-two changed lines against a threshold of ten and naming the covered files' drift. A second case adds twenty lines while a no-defect inspection is waiting in FollowUp and expects those twenty lines to appear in the suggestion count after closure.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:44.010Z"
+    },
+    {
+      "id": "R036",
+      "unitId": "U036",
+      "paraphrase": "The stdio contract test now flattens the lines returned in the preparation packet, asserts that at least one line exists, and expects every no_newline_at_eof value to be false. Its comment notes that the fixture files all end in a newline.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:44.352Z"
+    },
+    {
+      "id": "R037",
+      "unitId": "U037",
+      "paraphrase": "The gate matcher tests add two groups of directory-argument examples. The first expects null for words involving shell parameters, substitutions, unquoted expansion characters, unsupported tilde forms or a missing home directory. The second expects literal or home-expanded paths for quoted, escaped and eligible tilde forms, including examples where quoting within the tilde prefix or an equals-sign option leaves the tilde unchanged.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:44.683Z"
+    },
+    {
+      "id": "R038",
+      "unitId": "U038",
+      "paraphrase": "The metrics property test generates whether a meeting had defects, a meeting offset, up to six failure gaps, a terminal outcome and a final time gap. It builds ordered attempts and computes metrics for each case. Across 500 generated runs, its assertions compare combined rework and follow-up time with the elapsed interval, check non-negative values, and match null durations and phase-not-reached reasons to which phases were entered.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:45.018Z"
+    },
+    {
+      "id": "R039",
+      "unitId": "U039",
+      "paraphrase": "The packet tests add the DiffFile type to their diff imports and reworkDriftLoc to their packet-helper imports. The remaining imports shown in the unit are unchanged.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:45.365Z"
+    },
+    {
+      "id": "R040",
+      "unitId": "U040",
+      "paraphrase": "A new packet test constructs small parsed diffs and compares their rework-drift counts. It expects zero for the same diff, two for a rewritten added line, three for three additional lines in either argument order, and two when the final-newline marker changes. It also expects an excluded package-lock file to contribute zero.",
+      "judgmentFlags": [],
+      "recordedAt": "2026-11-17T05:01:45.689Z"
+    }
+  ]
+}

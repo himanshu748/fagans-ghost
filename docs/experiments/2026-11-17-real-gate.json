@@ -1,0 +1,21 @@
+{
+  "at": "2026-11-17T05:26:56.406Z",
+  "provider": "Codex",
+  "mode": "direct hook evaluation; command string was not executed with git",
+  "inspection": "insp-0001",
+  "phase": "Rework",
+  "payload": {
+    "hook_event_name": "PreToolUse",
+    "cwd": "/Users/himanshujha/code/fagans-ghost",
+    "tool_name": "execute_bash",
+    "tool_input": {
+      "command": "git commit -m inspection-gate-check",
+      "cwd": "/Users/himanshujha/code/fagans-ghost"
+    }
+  },
+  "exitCode": 2,
+  "stdout": "fagan commit gate: blocked. Open major defects: insp-0001: D001. Fix them and run follow_up, or have the Author waive them with a reason, before committing.\n",
+  "stderr": "fagan commit gate: blocked. Open major defects: insp-0001: D001. Fix them and run follow_up, or have the Author waive them with a reason, before committing.\n",
+  "commitsBefore": "11",
+  "commitsAfter": "11"
+}

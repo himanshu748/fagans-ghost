@@ -1,0 +1,887 @@
+diff --git a/.kiro/specs/fagan-mcp/design.md b/.kiro/specs/fagan-mcp/design.md
+index 77d3580..26ed6a0 100644
+--- a/.kiro/specs/fagan-mcp/design.md
++++ b/.kiro/specs/fagan-mcp/design.md
+@@ -177,6 +177,8 @@ Errors are thrown inside services as `FaganError` and turned into tool results `
+ 
+ So in the usual flow (meeting with defects, a failing `follow_up`, more rework, a passing `follow_up`) rework is `closedAt - meetingEnd` and follow-up is `0`, a real value: every follow-up attempt happens inside one tool call. Follow-up time is above zero only when the meeting logged no defects, so the inspection waits in FollowUp from `meetingEnd` until the first `follow_up`. `reworkStart` and `followupStart` stay in `inspection.json` as informational first-occurrence stamps (FM-R1.5).
+ 
++Property P8 (review v2 issue 4) checks the walk over attempts generated in time order: rework plus follow-up always equals `closedAt - meetingEnd` for a Closed inspection and `abandonedAt - meetingEnd` for an abandoned one.
++
+ ## MCP server
+ 
+ APIs used, as shown in the SDK v1.x docs ([server.md](https://github.com/modelcontextprotocol/typescript-sdk/blob/v1.x/docs/server.md)) and confirmed in the installed type declarations (`dist/esm/server/mcp.d.ts`, `dist/esm/server/stdio.d.ts`, `dist/esm/client/index.d.ts`, `dist/esm/client/stdio.d.ts`):
+@@ -217,8 +219,8 @@ CLI details (FEAT-003):
+ 
+ - `hook gate` reads the command from `tool_input.command`, then `tool_input.cmd` (string values only), until experiment E2 confirms the real field. It uses the payload's `cwd` when it is a non-empty string, else the process working directory. Outside a git repository, or with no `.fagan/inspections/`, a commit is allowed. On a block it prints the inspection IDs and blocking defect IDs, as `insp-0001: D001, D003`, to both stdout and stderr.
+ - `hook suggest` prints at most one line and swallows every error (message on stderr), so it always exits 0.
+-- `hook suggest` coverage (FM-R15.2, review v1 issue 5): a changed file counts as covered when its current working-tree blob hash is one of the hashes recorded for that path in a Closed inspection's passing follow-up attempt (`attempts[].blobs`). This includes the Author's rework, which changes the diff after the inspection was opened. Only uncovered files count toward `suggestThresholdLoc`. A byte-equal `diff.patch` still counts as covered. When the uncovered count is above `sizeLimitLoc`, the message says `open_inspection` would refuse it with `SIZE_LIMIT_EXCEEDED` and asks for the change to be split.
+-- `hook gate` target repos (FM-R16.2, review v1 issue 6): `gitCommitTargets` in `src/core/gate.ts` returns, for each commit segment, its directory options in the order they apply (`env -C`/`--chdir`, `sudo -D`/`--chdir`, then each `git -C`). The CLI resolves them one after another from the payload `cwd` with `path.resolve`, so a relative `-C` is relative to the previous directory as git documents, and checks the store of every distinct target repo. When blocks come from more than one repo, each is labelled with its root.
++- `hook suggest` coverage (FM-R15.2, review v1 issue 5, review v2 issue 2): a changed file counts as covered when its current working-tree blob hash is one of the hashes recorded for that path in a Closed inspection's passing follow-up attempt (`attempts[].blobs`) and its `HEAD` blob equals that inspection's `blobBefore` for it, so both diffs start from the same base. This includes the Author's rework, which changes the diff after the inspection was opened. A covered file still adds its rework drift (`reworkDriftLoc` in `src/core/packet.ts`): the added and deleted lines, compared as multisets of text plus the no-newline flag, that are in only one of the file's diff in `diff.patch` and its current diff. A one-line fix adds 2, new lines add one each, and code added during Rework or while a no-defect inspection waits in FollowUp counts toward `suggestThresholdLoc`. When several Closed inspections cover a file, the smallest drift counts. Uncovered files add all their changed lines. Two trade-offs are accepted: a line moved within the file adds 0, and a file edited again after its inspection closed is uncovered, so all its changed lines count. A byte-equal `diff.patch` still counts as covered. When the count is above `sizeLimitLoc`, the message says `open_inspection` would refuse it with `SIZE_LIMIT_EXCEEDED` and asks for the change to be split.
++- `hook gate` target repos (FM-R16.2, review v1 issue 6, review v2 issue 1): `gitCommitTargets` in `src/core/gate.ts` returns, for each commit segment, its directory options in the order they apply (`env -C`/`--chdir`, `sudo -D`/`--chdir`, then each `git -C`). The tokeniser flags each word: a word is used as written after quote removal; a leading unquoted `~` or `~/` becomes `os.homedir()` unless a character before the first unquoted `/` is quoted (POSIX tilde-prefix rule); a word with a `$` or backtick outside single quotes, another tilde form (`~user`, `~+`), or `*`, `?`, `[`, `{` outside quotes is reported as `null`, because the shell would expand it and the matcher does not. `commitRoot` in `src/cli.ts` resolves the values one after another from the payload `cwd` with `path.resolve`, so a relative `-C` is relative to the previous directory as git documents. After a `null`, later relative values stay unknown and an absolute one is known again. When the directory stays unknown, or the resolved directory is not inside a git repository (including one that does not exist), the commit is checked against the payload `cwd` repo instead. Before this rule, `git -C "$PWD" commit` resolved to `<cwd>/$PWD`, found no repo and was allowed silently. The CLI checks the store of every distinct target repo. When blocks come from more than one repo, each is labelled with its root.
+ - `follow-up` and `export` run the same service functions as the `follow_up` and `export_report` tools. The CLI acts for the human, who is the Author: `follow-up` passes the role check as `author`, and both commands record their events as `cli:follow-up` / `cli:export` with role `human`. `abandon` records `cli:abandon` with role `human`.
+ - Failed commands other than the hooks print `{ "code", "message" }` to stderr and exit 1; usage errors print the usage text and exit 1.
+ 
+@@ -232,11 +234,12 @@ The gate is a guard against an agent's ordinary `git commit`, not a sandbox. The
+ 
+ - Commands inside `sh -c '...'`, `bash -c`, `eval`, scripts, Makefiles, npm scripts and git aliases (the matcher sees only the outer command line).
+ - `cd <dir> && git commit`: the gate checks the payload `cwd`, not the directory after `cd`.
++- A `-C`/`--chdir` word the shell expands, such as `git -C "$OTHER" commit`, `git -C "$(cat dir.txt)" commit` or `git -C repo* commit`, is checked against the payload `cwd` repo, not the directory it expands to (review v2 issue 1). When the payload `cwd` repo has no open major, a commit into another repo written this way passes.
+ - `git --git-dir=<p>` or `--work-tree=<p>` pointing at another repo: the gate checks the repo found from the working directory.
+ - `env -S '<string>'` (`--split-string`), whose command is inside one word.
+ - Wrappers not in `WRAPPERS`, such as `chronic`, `ionice`, `flock` or `script -c`.
+ - Commits made by other git subcommands: `git merge`, `cherry-pick`, `revert`, `am`, `rebase`, `pull`, `stash` and plumbing such as `commit-tree`. FM-R16.2 defines a commit as the `commit` subcommand only.
+-- Payload problems fail open (FM-R16.5, review v1 issue 4): if Kiro's `PreToolUse` payload carries the command in neither `tool_input.command` nor `tool_input.cmd`, every commit passes with only a stderr warning. Experiment E2 in step 3 must confirm the field, and step 3's acceptance check is that the gate blocked a real `git commit` in a live Kiro session (`tasks.md` task 15, `docs/experiments.md`).
++- Payload problems fail open (FM-R16.5, review v1 issue 4): if Kiro's `PreToolUse` payload carries the command in neither `tool_input.command` nor `tool_input.cmd`, every commit passes with only a stderr warning. Experiment E2 in step 3 must confirm the field, and step 3's acceptance check is that the gate blocked a real `git commit` in a live Kiro session (`tasks.md` task 16, `docs/experiments.md`).
+ 
+ Step 7's root README must copy this list into its own "Commit gate scope" section; until then this section is the reference, and the comment in `src/core/gate.ts` points here.
+ 
+@@ -259,3 +262,4 @@ Each property is a fast-check test in `packages/fagan-mcp/test/*.property.test.t
+ | P5 | For any generated diff and any `maxUnitLines` from 1 to 200, the multiset of changed lines across units equals the diff's changed lines, no unit exceeds the cap, and unit IDs are gapless | `packet.property.test.ts` | `FM-R4.1 FM-R4.2 every changed line is in exactly one unit` | FM-R4.1, FM-R4.2, FM-R4.3, FM-R4.4 |
+ | P6 | For any random sequence of tool operations (`fc.commands`) against a model, an operation not allowed in the current phase returns `WRONG_PHASE` and leaves the stored state unchanged | `phase.property.test.ts` | `FM-R1.2 FM-R1.3 wrong-phase calls never change the store` | FM-R1.1, FM-R1.2, FM-R1.3 |
+ | P7 | For generated shell commands, the gate matcher returns true only for commands with a `git ... commit` segment; any command built without such a segment returns false | `gate.property.test.ts` | `FM-R16.1 FM-R16.2 the gate matches only git commit commands` | FM-R16.1, FM-R16.2 |
++| P8 | For time-ordered follow-up attempts (failures, then a pass or an abandon), with or without defects, rework plus follow-up equals `closedAt - meetingEnd` or `abandonedAt - meetingEnd`, both are non-negative, and a `null` with `phase_not_reached` appears exactly for a phase never entered (review v2 issue 4) | `metrics.property.test.ts` | `FM-R10.1 FM-R10.3 rework plus follow-up equals the time from meetingEnd to closedAt or abandonedAt` | FM-R10.1, FM-R10.3 |
+diff --git a/.kiro/specs/fagan-mcp/requirements.md b/.kiro/specs/fagan-mcp/requirements.md
+index 5a30f06..2492297 100644
+--- a/.kiro/specs/fagan-mcp/requirements.md
++++ b/.kiro/specs/fagan-mcp/requirements.md
+@@ -181,7 +181,7 @@ Glossary:
+ **User story:** As a hook author, I want a CLI over the same core and store, so that hooks (which cannot call MCP tools) can run the ritual's checks.
+ 
+ 1. **FM-R15.1** WHEN `fagan serve` runs THE SYSTEM SHALL start the MCP server on stdio and write logs only to stderr.
+-2. **FM-R15.2** WHEN `fagan hook suggest` runs THE SYSTEM SHALL read the hook payload from STDIN, use its `cwd` (or the process working directory), count changed LOC of the working tree against `HEAD` including untracked files with the same rules as FM-R4.4, and print one short suggestion to run the moderator only if the count exceeds `suggestThresholdLoc`, no inspection is in a non-terminal phase, and no Closed inspection's `diff.patch` equals the current diff. A changed file whose current blob hash equals its blob hash in a Closed inspection's passing follow-up attempt is covered and SHALL not be counted. WHEN the uncovered count also exceeds `sizeLimitLoc` THE SYSTEM SHALL say in the suggestion that `open_inspection` would refuse it with `SIZE_LIMIT_EXCEEDED` and that the change should be split.
++2. **FM-R15.2** WHEN `fagan hook suggest` runs THE SYSTEM SHALL read the hook payload from STDIN, use its `cwd` (or the process working directory), count changed LOC of the working tree against `HEAD` including untracked files with the same rules as FM-R4.4, and print one short suggestion to run the moderator only if the count exceeds `suggestThresholdLoc`, no inspection is in a non-terminal phase, and no Closed inspection's `diff.patch` equals the current diff. A changed file whose current blob hash equals its blob hash in a Closed inspection's passing follow-up attempt, and whose base blob equals that inspection's `blobBefore` for it, is covered: THE SYSTEM SHALL count for it only its rework drift, the added and deleted lines that differ (compared as multisets) between the file's diff in that inspection's `diff.patch` and its current diff, instead of all its changed lines. So code added during Rework, or while an inspection waits in FollowUp, counts toward `suggestThresholdLoc`. WHEN the count also exceeds `sizeLimitLoc` THE SYSTEM SHALL say in the suggestion that `open_inspection` would refuse it with `SIZE_LIMIT_EXCEEDED` and that the change should be split.
+ 3. **FM-R15.3** WHEN `fagan hook suggest` finishes, for any input or error THE SYSTEM SHALL exit 0.
+ 4. **FM-R15.4** WHEN `fagan follow-up --latest` runs THE SYSTEM SHALL run follow-up (as FM-R9) on the highest-numbered inspection in Rework or FollowUp, print the result, and exit 0; WHEN no such inspection exists THE SYSTEM SHALL print that and exit 0. `fagan follow-up <id>` does the same for one inspection.
+ 5. **FM-R15.5** WHEN `fagan abandon <id> --reason <text>` runs on a non-terminal inspection with a valid waiver reason THE SYSTEM SHALL move it to Abandoned, set `abandonedAt` and `abandonReason`, and append an event; otherwise it SHALL print the error and exit 1.
+@@ -193,7 +193,7 @@ Glossary:
+ **User story:** As the Author, I want agents blocked from committing while an inspection has open majors, so that unresolved majors cannot slip into history.
+ 
+ 1. **FM-R16.1** WHEN `fagan hook gate` reads a shell command that is not a git commit THE SYSTEM SHALL exit 0, whatever the store holds.
+-2. **FM-R16.2** WHEN the command contains a segment (split on `&&`, `||`, `;`, `|`, `&`, parentheses and newlines, plus the bodies of `$(...)` and backticks) whose program is `git` and whose subcommand, after skipping leading environment assignments, the wrappers `command`, `exec`, `time`, `nohup`, `env`, `nice`, `timeout`, `stdbuf`, `xargs`, `sudo` and `doas` with their options, and git global options such as `-c key=value`, `-C <path>` and `--no-pager`, is `commit` THE SYSTEM SHALL treat it as a git commit, and SHALL check the repository it runs in: the payload `cwd` moved, in order, by `env -C`/`--chdir`, `sudo -D`/`--chdir` and each `git -C <path>` (relative paths resolve against the previous directory). Known gaps are listed in design.md "Commit gate scope".
++2. **FM-R16.2** WHEN the command contains a segment (split on `&&`, `||`, `;`, `|`, `&`, parentheses and newlines, plus the bodies of `$(...)` and backticks) whose program is `git` and whose subcommand, after skipping leading environment assignments, the wrappers `command`, `exec`, `time`, `nohup`, `env`, `nice`, `timeout`, `stdbuf`, `xargs`, `sudo` and `doas` with their options, and git global options such as `-c key=value`, `-C <path>` and `--no-pager`, is `commit` THE SYSTEM SHALL treat it as a git commit, and SHALL check the repository it runs in: the payload `cwd` moved, in order, by `env -C`/`--chdir`, `sudo -D`/`--chdir` and each `git -C <path>` (relative paths resolve against the previous directory). Each directory word is used as written after quote removal, except that a leading unquoted `~` or `~/` with no quoted character before the first `/` becomes the home directory. WHEN a directory word holds shell syntax the matcher does not evaluate (`$`, `$(...)`, backticks, other tilde forms, or `*`, `?`, `[`, `{` outside quotes) and no absolute directory word follows it, or WHEN the resulting directory is not inside a git repository, THE SYSTEM SHALL check the payload `cwd` repository for that commit instead. Known gaps are listed in design.md "Commit gate scope".
+ 3. **FM-R16.3** WHEN a git commit is attempted and any inspection in a non-terminal phase has an open major THE SYSTEM SHALL write the inspection IDs and blocking defect IDs to stderr and stdout and exit 2.
+ 4. **FM-R16.4** WHEN a git commit is attempted and no inspection has an open major, or `.fagan/inspections/` does not exist, THE SYSTEM SHALL exit 0.
+ 5. **FM-R16.5** WHEN the STDIN payload is not JSON or has no command string in `tool_input` (checked fields: `command`, `cmd`) THE SYSTEM SHALL write a warning to stderr and exit 0.
+diff --git a/.kiro/specs/fagan-mcp/tasks.md b/.kiro/specs/fagan-mcp/tasks.md
+index 92c9318..7c832e3 100644
+--- a/.kiro/specs/fagan-mcp/tasks.md
++++ b/.kiro/specs/fagan-mcp/tasks.md
+@@ -97,3 +97,10 @@ Tasks 1 to 9 are the core, store, git and runner work (FEAT-002). Tasks 10 to 14
+   - [ ] 16.1 Run experiment E2 and record the real `PreToolUse` shell tool ID and command field in `docs/experiments.md`; change `COMMAND_FIELDS` in `src/cli.ts` if the field differs
+   - [ ] 16.2 Acceptance: with `.kiro/hooks/commit-gate.json` wired and an inspection holding an open major, the gate blocked a real `git commit` attempted by the agent in a live Kiro session. Recording the payload field alone does not complete this task
+   - _Requirements: FM-R16.3, FM-R16.5_
++
++- [x] 17. Review v2 fixes (review of the v1 fix pass, 4 issues)
++  - [x] 17.1 Gate: `-C`/`--chdir` words the shell would expand, and directories outside a git repo, fall back to the payload `cwd` repo; `~` and `~/` expand to the home directory
++  - [x] 17.2 `hook suggest`: covered files add their rework drift (`reworkDriftLoc`) to the count
++  - [x] 17.3 design.md "Commit gate scope" points at task 16
++  - [x] 17.4 Property P8: rework plus follow-up equals the time from `meetingEnd` to `closedAt` or `abandonedAt`
++  - _Requirements: FM-R10.1, FM-R10.3, FM-R15.2, FM-R16.2_
+diff --git a/docs/experiments.md b/docs/experiments.md
+index 61f0253..bf07416 100644
+--- a/docs/experiments.md
++++ b/docs/experiments.md
+@@ -123,3 +123,14 @@ A semantic review of the step 2 code (FEAT-001 to FEAT-003) on 2026-11-16 return
+ ## Review v1 follow-ups (for step 3)
+ 
+ - E2 and the commit gate (review v1 issue 4): `fagan hook gate` reads `tool_input.command`, then `tool_input.cmd`, and allows the call with a stderr warning when neither is a string (FM-R16.5). If Kiro uses another field, every commit passes. Step 3 acceptance for the gate is "the gate blocked a real `git commit` in a live Kiro session", not only "payload field recorded". Tracked as task 16 in `.kiro/specs/fagan-mcp/tasks.md`.
++
++## Review v2 fixes (step 2)
++
++A second review on 2026-11-16, of the v1 fix pass (commit 647a96b), returned NEEDS_CHANGES with 4 issues. What changed for each, and the tests that cover it (all in `packages/fagan-mcp/test/`):
++
++1. The v1 issue 6 fix opened the gate for `-C` words the shell expands (blocking regression). `git -C "$PWD" commit`, `git -C ~/<repo> commit`, `git -C "$(git rev-parse --show-toplevel)/src" commit` and `env -C $PWD git commit` resolved to folders that do not exist, found no repo and exited 0 while a major was open. The tokeniser in `src/core/gate.ts` now flags each word: `~` and `~/` (unquoted, no quoted character before the first `/`) become the home directory, and a word with `$`, a backtick, another tilde form or an unquoted `*`, `?`, `[` or `{` is reported as unknown. `commitRoot` in `src/cli.ts` checks the payload `cwd` repo when a directory is unknown or is not inside a git repo; an absolute `-C` after an unknown word is known again (FM-R16.2, design.md "Commit gate scope" lists the remaining gap). After the fix, a throwaway script drove a temp repo to Rework with one open major and piped each command into the built `fagan hook gate`: `git commit -m x` and all four commands above exited 2, as did `git -C does-not-exist commit -m x`; `git status` exited 0. Tests: `cli.test.ts` (`FM-R16.2 FM-R16.3 falls back to the payload cwd for -C words the shell would expand or that are not a repo (review v2 issue 1)`, nine commands plus the clean-repo and absolute-path cases) and `gate.test.ts` (`FM-R16.2 reports null for directory words the shell would expand`, `FM-R16.2 resolves quoted, escaped and tilde directory words as the shell would`).
++2. `hook suggest` treated any amount of code added to an inspected file during Rework as covered. A covered file now adds its rework drift to the count: the added and deleted lines that differ between its diff in `diff.patch` and its current diff (`reworkDriftLoc` in `src/core/packet.ts`, FM-R15.2, design.md "CLI"). Tests: `packet.test.ts` (`FM-R15.2 rework drift counts the changed lines that differ between two diffs of a file`) and `cli.test.ts` (`FM-R15.2 counts code added during rework against the threshold (review v2 issue 2)`: a one-line fix plus 20 new lines gives 22 changed lines against a threshold of 10, and 20 lines added while a no-defect inspection waits in FollowUp give 20). The v1 issue 5 test now uses threshold 2, because its one-line fix is 2 lines of drift.
++3. design.md "Commit gate scope" pointed at `tasks.md` task 15 for the step 3 live-block check. It now points at task 16. No code change.
++4. No property checked the rework and follow-up totals. New property P8 in `metrics.property.test.ts` (`FM-R10.1 FM-R10.3 rework plus follow-up equals the time from meetingEnd to closedAt or abandonedAt`) generates time-ordered attempts, with and without defects, and checks the sum, non-negative values and which phase is `null`. Changing `at - since` to `at - start` in `reworkAndFollowupMs`, or dropping `entered.FollowUp = true`, makes it fail (counterexamples `[false,0,[1],"closed",0]` and `[true,0,[],"closed",0]`); both edits were reverted.
++
++The review also listed `no_newline_at_eof` in a `get_packet` result over stdio as untested. The full-lifecycle test in `contract.test.ts` now checks that every unit line returned in Preparation carries the field. All values are `false` there, because every fixture file ends in a newline; the `true` case is covered in-process by `packet.test.ts` (`FM-R4.7 keeps the no-newline-at-end-of-file marker in packet units and report.txt`).
+diff --git a/packages/fagan-mcp/src/cli.ts b/packages/fagan-mcp/src/cli.ts
+index 2daae94..12e972c 100644
+--- a/packages/fagan-mcp/src/cli.ts
++++ b/packages/fagan-mcp/src/cli.ts
+@@ -2,7 +2,8 @@
+ // `fagan` CLI: the MCP server entry and the commands hooks run, because hooks
+ // cannot call MCP tools (design.md "CLI", FM-R15, FM-R16). Arguments are
+ // parsed with node:util parseArgs.
+-import { resolve as resolvePath } from "node:path";
++import { homedir } from "node:os";
++import { isAbsolute, resolve as resolvePath } from "node:path";
+ import { parseArgs } from "node:util";
+ import { systemClock } from "./clock.js";
+ import { isFaganError } from "./core/errors.js";
+@@ -13,6 +14,7 @@ import {
+   exportReportService,
+   followUpService,
+   gateBlocks,
++  gateRoot,
+   latestFollowUpCandidate,
+   suggestion,
+   type GateBlock,
+@@ -101,6 +103,36 @@ async function hookSuggest(): Promise<number> {
+   return 0;
+ }
+ 
++/** `os.homedir()` for tilde expansion, or null when it cannot be found (then `~` words fall back, FM-R16.2). */
++function homeDir(): string | null {
++  try {
++    const h = homedir();
++    return h.length > 0 ? h : null;
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * The repo one commit targets (FM-R16.2): the payload cwd moved, in order, by
++ * its `-C`/`--chdir` values. A null value is a directory the shell computes
++ * and the matcher does not evaluate; later relative values stay unknown and
++ * an absolute one is known again. The payload cwd's repo is used instead when
++ * the directory stays unknown, or when the moved directory is not inside a
++ * git repo, so an unexpanded `$PWD` or a typo cannot skip the check (review
++ * v2 issue 1). Null when neither is a repo.
++ */
++async function commitRoot(base: string, chain: ReadonlyArray<string | null>): Promise<string | null> {
++  let dir: string | null = base;
++  for (const p of chain) {
++    if (p === null) dir = null;
++    else if (dir !== null) dir = resolvePath(dir, p);
++    else if (isAbsolute(p)) dir = resolvePath(p);
++  }
++  if (dir === null) return gateRoot(base);
++  return (await gateRoot(dir)) ?? (dir === base ? null : gateRoot(base));
++}
++
+ async function hookGate(): Promise<number> {
+   let text: string;
+   try {
+@@ -119,15 +151,18 @@ async function hookGate(): Promise<number> {
+     err(`fagan commit gate: warning: no command string in tool_input (checked ${COMMAND_FIELDS.join(", ")}); allowing`);
+     return 0;
+   }
+-  const targets = gitCommitTargets(command);
++  const targets = gitCommitTargets(command, homeDir());
+   if (targets.length === 0) return 0;
+   try {
+-    // Each commit runs in the payload cwd moved by its `-C`/`--chdir` values.
+     const base = payloadCwd(payload);
+-    const dirs = [...new Set(targets.map((t) => t.reduce((dir, p) => resolvePath(dir, p), base)))];
++    const roots = new Set<string>();
++    for (const chain of targets) {
++      const root = await commitRoot(base, chain);
++      if (root !== null) roots.add(root);
++    }
+     const blocks: GateBlock[] = [];
+-    for (const dir of dirs) {
+-      for (const b of await gateBlocks(dir)) {
++    for (const root of roots) {
++      for (const b of await gateBlocks(root)) {
+         if (!blocks.some((x) => x.inspection_id === b.inspection_id && x.root === b.root)) blocks.push(b);
+       }
+     }
+diff --git a/packages/fagan-mcp/src/core/gate.ts b/packages/fagan-mcp/src/core/gate.ts
+index 57fb5bf..9d03ccc 100644
+--- a/packages/fagan-mcp/src/core/gate.ts
++++ b/packages/fagan-mcp/src/core/gate.ts
+@@ -10,6 +10,12 @@
+ // Each commit also reports the directories it runs in: `git -C <path>` and
+ // the wrapper options `env -C`/`--chdir` and `sudo -D`/`--chdir`, in order,
+ // so the gate checks the repo the commit really targets (review v1 issue 6).
++// A directory word is used as written after quote removal; a leading
++// unquoted `~` or `~/` with no quoted character before the first `/`
++// becomes the home directory. A word holding shell syntax the tokeniser
++// does not evaluate (`$`, `$(...)`, backticks, other tilde forms, glob or
++// brace characters outside quotes) reports `null`, and the CLI then checks
++// the payload cwd instead (review v2 issue 1).
+ // Known gaps (design.md "Commit gate scope"): commands inside `sh -c '...'`,
+ // `eval`, scripts and git aliases; `cd <dir> && git commit` (the gate checks
+ // the payload cwd); `--git-dir`/`--work-tree`; `env -S`; commits made by
+@@ -93,21 +99,55 @@ function closeBacktick(command: string, start: number): number {
+   return command.length;
+ }
+ 
++/** One shell word after quote removal. */
++export interface ShellWord {
++  /** The word's text with quotes removed and the output of command substitutions left out. */
++  text: string;
++  /**
++   * False when the shell would expand part of the word in a way the tokeniser
++   * does not evaluate: a `$` or backtick outside single quotes (parameters,
++   * `$(...)`, `$((...))`, `$'...'`), or `*`, `?`, `[` or `{` outside quotes.
++   */
++  literal: boolean;
++  /** True when the word starts with an unquoted `~` and nothing up to its first unquoted `/` is quoted (tilde expansion). */
++  tilde: boolean;
++}
++
++/** Characters that start pathname or brace expansion when unquoted. */
++const EXPANDING = new Set(["*", "?", "[", "{"]);
++
+ /**
+  * Splits a shell command into segments of words. The bodies of command
+  * substitutions (`$(...)` and backticks, also inside double quotes) are split
+  * as segments of their own, because the shell runs them.
+  */
+ export function shellSegments(command: string): string[][] {
+-  const segments: string[][] = [];
+-  const nested: string[][] = [];
+-  let words: string[] = [];
++  return shellWordSegments(command).map((words) => words.map((w) => w.text));
++}
++
++/** `shellSegments` with each word's expansion flags (FM-R16.2). */
++export function shellWordSegments(command: string): ShellWord[][] {
++  const segments: ShellWord[][] = [];
++  const nested: ShellWord[][] = [];
++  let words: ShellWord[] = [];
+   let word = "";
+   let inWord = false;
++  let literal = true;
++  let tilde = false;
++  /** True from a word's leading unquoted `~` up to its first unquoted `/`: the tilde-prefix. */
++  let tildePrefix = false;
+   const endWord = (): void => {
+-    if (inWord) words.push(word);
++    if (inWord) words.push({ text: word, literal, tilde });
+     word = "";
+     inWord = false;
++    literal = true;
++    tilde = false;
++    tildePrefix = false;
++  };
++  /** A quoted or escaped character inside the tilde-prefix turns tilde expansion off (POSIX 2.6.1). */
++  const quotedChar = (): void => {
++    if (tildePrefix) tilde = false;
++    tildePrefix = false;
+   };
+   const endSegment = (): void => {
+     endWord();
+@@ -118,14 +158,16 @@ export function shellSegments(command: string): string[][] {
+   const substitution = (i: number): number => {
+     if (command.startsWith("$(", i)) {
+       const end = closeParen(command, i + 2);
+-      nested.push(...shellSegments(command.slice(i + 2, Math.max(i + 2, end - 1))));
++      nested.push(...shellWordSegments(command.slice(i + 2, Math.max(i + 2, end - 1))));
+       inWord = true;
++      literal = false;
+       return end;
+     }
+     if (command[i] === "`") {
+       const end = closeBacktick(command, i + 1);
+-      nested.push(...shellSegments(command.slice(i + 1, Math.max(i + 1, end - 1))));
++      nested.push(...shellWordSegments(command.slice(i + 1, Math.max(i + 1, end - 1))));
+       inWord = true;
++      literal = false;
+       return end;
+     }
+     return -1;
+@@ -140,6 +182,7 @@ export function shellSegments(command: string): string[][] {
+       continue;
+     }
+     if (ch === "'") {
++      quotedChar();
+       const close = command.indexOf("'", i + 1);
+       const end = close < 0 ? command.length : close;
+       word += command.slice(i + 1, end);
+@@ -148,6 +191,7 @@ export function shellSegments(command: string): string[][] {
+       continue;
+     }
+     if (ch === '"') {
++      quotedChar();
+       inWord = true;
+       i++;
+       while (i < command.length && command[i] !== '"') {
+@@ -158,6 +202,7 @@ export function shellSegments(command: string): string[][] {
+           if (command[i + 1] !== "\n") word += command[i + 1];
+           i += 2;
+         } else {
++          if (command[i] === "$") literal = false;
+           word += command[i];
+           i++;
+         }
+@@ -168,6 +213,7 @@ export function shellSegments(command: string): string[][] {
+     if (ch === "\\") {
+       if (i + 1 < command.length) {
+         if (command[i + 1] !== "\n") {
++          quotedChar();
+           word += command[i + 1];
+           inWord = true;
+         }
+@@ -193,6 +239,13 @@ export function shellSegments(command: string): string[][] {
+       i++;
+       continue;
+     }
++    if (ch === "$" || EXPANDING.has(ch)) literal = false;
++    if (ch === "~" && !inWord) {
++      tilde = true;
++      tildePrefix = true;
++    } else if (ch === "/") {
++      tildePrefix = false;
++    }
+     word += ch;
+     inWord = true;
+     i++;
+@@ -201,16 +254,19 @@ export function shellSegments(command: string): string[][] {
+   return [...segments, ...nested];
+ }
+ 
++/** A literal word as `shellWordSegments` would report it. */
++const literalWord = (text: string): ShellWord => ({ text, literal: true, tilde: false });
++
+ /**
+- * The directories a `git ... commit` segment runs in, as written, in the
+- * order they apply (wrapper chdir options, then `git -C` values); `null` when
+- * the segment is not a git commit. An empty list means the shell's cwd.
++ * The directory words of a `git ... commit` segment, in the order they apply
++ * (wrapper chdir options, then `git -C` values); `null` when the segment is
++ * not a git commit. An empty list means the shell's cwd.
+  */
+-export function gitCommitDirs(words: readonly string[]): string[] | null {
+-  const dirs: string[] = [];
++export function gitCommitDirs(words: readonly ShellWord[]): ShellWord[] | null {
++  const dirs: ShellWord[] = [];
+   let i = 0;
+   for (;;) {
+-    const w = words[i];
++    const w = words[i]?.text;
+     if (w === undefined) return null;
+     if (ASSIGNMENT_RE.test(w)) {
+       i++;
+@@ -220,16 +276,18 @@ export function gitCommitDirs(words: readonly string[]): string[] | null {
+     if (wrapper !== undefined) {
+       i++;
+       // Skip the wrapper's own options, such as `env -i`, `sudo -u root` or `nice -n 5`.
+-      while (words[i]?.startsWith("-") === true) {
+-        const opt = words[i] as string;
++      while (words[i]?.text.startsWith("-") === true) {
++        const optWord = words[i] as ShellWord;
++        const opt = optWord.text;
+         i++;
+         if (opt === "--") break;
+         const eq = opt.indexOf("=");
+         const name = opt.startsWith("--") && eq > 0 ? opt.slice(0, eq) : opt;
+         if (eq > 0 && opt.startsWith("--")) {
+-          if (wrapper.chdirOptions.has(name)) dirs.push(opt.slice(eq + 1));
++          // No tilde expansion after `=` here: the word is not a variable assignment.
++          if (wrapper.chdirOptions.has(name)) dirs.push({ text: opt.slice(eq + 1), literal: optWord.literal, tilde: false });
+         } else if (wrapper.valueOptions.has(name)) {
+-          if (wrapper.chdirOptions.has(name) && words[i] !== undefined) dirs.push(words[i] as string);
++          if (wrapper.chdirOptions.has(name) && words[i] !== undefined) dirs.push(words[i] as ShellWord);
+           i++;
+         }
+       }
+@@ -238,14 +296,14 @@ export function gitCommitDirs(words: readonly string[]): string[] | null {
+     }
+     break;
+   }
+-  const program = words[i];
++  const program = words[i]?.text;
+   if (program === undefined || !(program === "git" || program.endsWith("/git"))) return null;
+   i++;
+   while (i < words.length) {
+-    const w = words[i] as string;
+-    if (w === "--") return words[i + 1] === "commit" ? dirs : null;
++    const w = (words[i] as ShellWord).text;
++    if (w === "--") return words[i + 1]?.text === "commit" ? dirs : null;
+     if (!w.startsWith("-")) return w === "commit" ? dirs : null;
+-    if (w === "-C" && words[i + 1] !== undefined) dirs.push(words[i + 1] as string);
++    if (w === "-C" && words[i + 1] !== undefined) dirs.push(words[i + 1] as ShellWord);
+     i += OPTIONS_WITH_VALUE.has(w) ? 2 : 1;
+   }
+   return null;
+@@ -253,14 +311,30 @@ export function gitCommitDirs(words: readonly string[]): string[] | null {
+ 
+ /** True when one segment's words run `git ... commit`. */
+ export function isGitCommitSegment(words: readonly string[]): boolean {
+-  return gitCommitDirs(words) !== null;
++  return gitCommitDirs(words.map(literalWord)) !== null;
+ }
+ 
+-/** For each git commit segment of the shell command, the directories it runs in (FM-R16.2). */
+-export function gitCommitTargets(command: string): string[][] {
+-  return shellSegments(command)
++/**
++ * The path a directory word names, or null when it holds shell syntax the
++ * tokeniser does not evaluate. `~` and `~/...` (unquoted) expand to `home`;
++ * other tilde forms (`~user`, `~+`, `~-`) and a null `home` give null.
++ */
++export function dirWordPath(word: ShellWord, home: string | null): string | null {
++  if (!word.literal) return null;
++  if (!word.tilde) return word.text;
++  if (home === null || !(word.text === "~" || word.text.startsWith("~/"))) return null;
++  return home + word.text.slice(1);
++}
++
++/**
++ * For each git commit segment of the shell command, the directories it runs
++ * in, in order; null for a directory word the CLI cannot know (FM-R16.2).
++ */
++export function gitCommitTargets(command: string, home: string | null = null): Array<Array<string | null>> {
++  return shellWordSegments(command)
+     .map(gitCommitDirs)
+-    .filter((d): d is string[] => d !== null);
++    .filter((d): d is ShellWord[] => d !== null)
++    .map((dirs) => dirs.map((w) => dirWordPath(w, home)));
+ }
+ 
+ /** True when any segment of the shell command is a git commit (FM-R16.2). */
+diff --git a/packages/fagan-mcp/src/core/packet.ts b/packages/fagan-mcp/src/core/packet.ts
+index f73c8d8..dc7d794 100644
+--- a/packages/fagan-mcp/src/core/packet.ts
++++ b/packages/fagan-mcp/src/core/packet.ts
+@@ -160,6 +160,33 @@ export function countChangedLoc(files: readonly DiffFile[], exclude: readonly st
+   return n;
+ }
+ 
++/**
++ * Changed lines between two diffs of one file against the same base, such as
++ * the diff an inspection read and the diff after rework (FM-R15.2). Added
++ * lines and deleted lines are compared as multisets of text and counted in
++ * both directions, so equal diffs give 0, a rewritten line gives 2 (one
++ * deleted, one added, as `countChangedLoc` counts it) and N new lines give N.
++ * Moved lines count 0. Binary and excluded files count 0, as in FM-R4.4.
++ */
++export function reworkDriftLoc(inspected: DiffFile, current: DiffFile, exclude: readonly string[]): number {
++  if (inspected.binary || current.binary || matchesAny(current.path, exclude)) return 0;
++  const balance = new Map<string, number>();
++  const tally = (file: DiffFile, sign: number): void => {
++    for (const hunk of file.hunks) {
++      for (const line of hunk.lines) {
++        if (!isChanged(line)) continue;
++        const key = `${line.kind}\n${line.noNewlineAtEof ? 1 : 0}\n${line.text}`;
++        balance.set(key, (balance.get(key) ?? 0) + sign);
++      }
++    }
++  };
++  tally(inspected, 1);
++  tally(current, -1);
++  let n = 0;
++  for (const v of balance.values()) n += Math.abs(v);
++  return n;
++}
++
+ /** Line numbers a unit covers on one side, as an inclusive range, or null if it has none. */
+ export function unitSideRange(unit: Unit, side: "new" | "old"): { min: number; max: number } | null {
+   let min = Infinity;
+diff --git a/packages/fagan-mcp/src/service/service.ts b/packages/fagan-mcp/src/service/service.ts
+index 9176829..cb9553c 100644
+--- a/packages/fagan-mcp/src/service/service.ts
++++ b/packages/fagan-mcp/src/service/service.ts
+@@ -5,6 +5,7 @@
+ import { createHash } from "node:crypto";
+ import { readFileSync } from "node:fs";
+ import { isoNow, type Clock } from "../clock.js";
++import { parseUnifiedDiff, type DiffFile } from "../core/diff.js";
+ import { FaganError } from "../core/errors.js";
+ import { openMajorIds } from "../core/followup.js";
+ import { toDeterministicJson } from "../core/json.js";
+@@ -25,7 +26,7 @@ import {
+   type RecordReadingResult,
+   type RecordReworkResult,
+ } from "../core/ops.js";
+-import { countChangedLoc, buildPacket } from "../core/packet.js";
++import { countChangedLoc, buildPacket, reworkDriftLoc } from "../core/packet.js";
+ import { assertPhase, isTerminal } from "../core/phase.js";
+ import { buildReport, renderReportTxt, serializeReport } from "../core/report.js";
+ import { assertRole } from "../core/roles.js";
+@@ -458,6 +459,14 @@ export async function abandonService(
+ 
+ // ---------------------------------------------------------------- hooks
+ 
++/** A file content a Closed inspection accepted, with what the inspection read for it. */
++interface AcceptedFile {
++  /** `blobBefore` of the packet file: the base the inspected diff starts from. */
++  blobBefore: string | null;
++  /** The file's diff in the inspection's `diff.patch`. */
++  inspected: DiffFile | undefined;
++}
++
+ /**
+  * The `hook suggest` check (FM-R15.2). Returns the suggestion text, or null
+  * when nothing should be printed. Errors propagate; the CLI swallows them.
+@@ -466,36 +475,59 @@ export async function suggestion(cwd: string): Promise<string | null> {
+   const root = await resolveRoot(cwd);
+   const config = await loadConfig(root);
+   const closedDiffs: string[] = [];
+-  /** Content each Closed inspection accepted: path -> blob hashes at its passing follow-up. */
+-  const accepted = new Map<string, Set<string | null>>();
++  /** Content each Closed inspection accepted: path -> blob hash at its passing follow-up -> what it read. */
++  const accepted = new Map<string, Map<string | null, AcceptedFile[]>>();
+   for (const id of await listInspectionIds(root)) {
+     const state = await loadState(root, id);
+     if (!isTerminal(state.inspection.phase)) return null;
+     if (state.inspection.phase !== "Closed") continue;
+-    closedDiffs.push(await readDiff(root, id));
++    const diffText = await readDiff(root, id);
++    closedDiffs.push(diffText);
++    const inspectedFiles = parseUnifiedDiff(diffText);
+     const passing = state.followup.attempts.find((a) => a.passed);
+     for (const b of passing?.blobs ?? []) {
+-      const set = accepted.get(b.path) ?? new Set<string | null>();
+-      set.add(b.blob);
+-      accepted.set(b.path, set);
++      const byBlob = accepted.get(b.path) ?? new Map<string | null, AcceptedFile[]>();
++      const list = byBlob.get(b.blob) ?? [];
++      list.push({
++        blobBefore: state.packet.files.find((f) => f.path === b.path)?.blobBefore ?? null,
++        inspected: inspectedFiles.find((f) => f.path === b.path),
++      });
++      byBlob.set(b.blob, list);
++      accepted.set(b.path, byBlob);
+     }
+   }
+   const diff = await collectDiff(root, { base: "HEAD", head: WORKTREE, includeUntracked: true, excludePaths: STORE_EXCLUDE_PATHS });
+   if (closedDiffs.includes(diff.diffText)) return null;
+   // A file is covered when its current content is what a Closed inspection
+-  // accepted, including the Author's rework (review v1 issue 5).
++  // accepted, including the Author's rework (review v1 issue 5). The lines
++  // that changed after the inspection read the file (rework drift) still
++  // count, so only small rework stays under the threshold (review v2 issue 2).
+   const candidates = diff.files.filter((f) => accepted.has(f.path));
+   const blobs = await currentBlobs(root, candidates.map((f) => f.path));
+-  const uncovered = diff.files.filter((f) => {
+-    const set = accepted.get(f.path);
+-    return set === undefined || !blobs.has(f.path) || !set.has(blobs.get(f.path) ?? null);
+-  });
+-  const loc = countChangedLoc(uncovered, config.exclude);
++  const uncovered: DiffFile[] = [];
++  let covered = 0;
++  let drift = 0;
++  for (const f of diff.files) {
++    const blob = blobs.has(f.path) ? (blobs.get(f.path) ?? null) : undefined;
++    const base = diff.blobs.get(f.path)?.blobBefore ?? null;
++    // Drift is only measurable against the same base; otherwise the file is uncovered.
++    const drifts = (blob === undefined ? [] : (accepted.get(f.path)?.get(blob) ?? []))
++      .filter((a) => a.inspected !== undefined && a.blobBefore === base)
++      .map((a) => reworkDriftLoc(a.inspected as DiffFile, f, config.exclude));
++    if (drifts.length === 0) {
++      uncovered.push(f);
++      continue;
++    }
++    covered++;
++    drift += Math.min(...drifts);
++  }
++  const loc = countChangedLoc(uncovered, config.exclude) + drift;
+   if (loc <= config.suggestThresholdLoc) return null;
+-  const covered = diff.files.length - uncovered.length;
+   const head =
+     `fagan: ${loc} changed lines against HEAD (threshold ${config.suggestThresholdLoc}) and no inspection covers them` +
+-    (covered > 0 ? ` (${covered} file(s) already covered by a Closed inspection are not counted). ` : ". ");
++    (covered > 0
++      ? ` (${covered} file(s) already covered by a Closed inspection add only the ${drift} line(s) changed since the inspection read them). `
++      : ". ");
+   if (loc > config.sizeLimitLoc) {
+     return (
+       head +
+@@ -513,19 +545,24 @@ export interface GateBlock {
+   defect_ids: string[];
+ }
+ 
++/** The repo root of `cwd` for the commit gate, or null when it is not inside a git repo (FM-R16.4). */
++export async function gateRoot(cwd: string): Promise<string | null> {
++  try {
++    return await resolveRoot(cwd);
++  } catch (err) {
++    if (err instanceof FaganError && err.code === "NOT_A_GIT_REPO") return null;
++    throw err;
++  }
++}
++
+ /**
+  * Inspections in a non-terminal phase with open majors (FM-R16.3, FM-R16.4).
+  * An empty list allows the commit. A missing repo or store allows; an
+  * unreadable store throws, and the CLI blocks on that (FM-R16.6).
+  */
+ export async function gateBlocks(cwd: string): Promise<GateBlock[]> {
+-  let root: string;
+-  try {
+-    root = await resolveRoot(cwd);
+-  } catch (err) {
+-    if (err instanceof FaganError && err.code === "NOT_A_GIT_REPO") return [];
+-    throw err;
+-  }
++  const root = await gateRoot(cwd);
++  if (root === null) return [];
+   const ids = await listInspectionIds(root);
+   if (ids.length === 0) return [];
+   const config = await loadConfig(root);
+diff --git a/packages/fagan-mcp/test/cli.test.ts b/packages/fagan-mcp/test/cli.test.ts
+index 731c8be..c866ccb 100644
+--- a/packages/fagan-mcp/test/cli.test.ts
++++ b/packages/fagan-mcp/test/cli.test.ts
+@@ -3,8 +3,8 @@
+ // in-process through the same services the MCP server uses.
+ import { spawnSync } from "node:child_process";
+ import { existsSync, readFileSync, writeFileSync } from "node:fs";
+-import { tmpdir } from "node:os";
+-import { join } from "node:path";
++import { homedir, tmpdir } from "node:os";
++import { join, relative } from "node:path";
+ import { afterEach, beforeAll, describe, expect, it } from "vitest";
+ import { systemClock } from "../src/clock.js";
+ import { readEvents } from "../src/store/store.js";
+@@ -19,7 +19,7 @@ import {
+   recordReworkService,
+   type ServiceContext,
+ } from "../src/service/service.js";
+-import { CALC_V3, CLI, assertBuilt, fixtureConfig, fixtureRepo } from "./fixture.js";
++import { CALC_V3, CLI, NOTES, assertBuilt, fixtureConfig, fixtureRepo } from "./fixture.js";
+ 
+ interface Run {
+   status: number | null;
+@@ -116,9 +116,38 @@ describe("fagan hook gate", () => {
+     expect(fagan(clean, ["hook", "gate"], payload(`git -C ${JSON.stringify(root)} commit -m x`)).status).toBe(2);
+     expect(fagan(clean, ["hook", "gate"], payload(`sudo -D ${JSON.stringify(root)} git commit -m x`)).status).toBe(2);
+     expect(fagan(root, ["hook", "gate"], payload(`git -C ${JSON.stringify(clean)} commit -m x`)).status).toBe(0);
++    // A missing directory falls back to the payload cwd repo, which is clean here (review v2 issue 1).
+     expect(fagan(clean, ["hook", "gate"], payload("git -C does-not-exist commit -m x")).status).toBe(0);
+   });
+ 
++  it("FM-R16.2 FM-R16.3 falls back to the payload cwd for -C words the shell would expand or that are not a repo (review v2 issue 1)", async () => {
++    const root = repo();
++    await toReworkWithMajor(root);
++    const fromHome = relative(homedir(), root);
++    for (const cmd of [
++      'git -C "$PWD" commit -m x',
++      "git -C $PWD commit -m x",
++      `git -C ~/${fromHome} commit -m x`,
++      'git -C "$(git rev-parse --show-toplevel)/src" commit -m x',
++      "git -C `pwd` commit -m x",
++      "env -C $PWD git commit -m x",
++      "sudo --chdir=${PWD} git commit -m x",
++      "git -C does-not-exist commit -m x",
++      "git -C '$PWD' commit -m x",
++    ]) {
++      const r = fagan(root, ["hook", "gate"], payload(cmd));
++      expect(r.status, cmd).toBe(2);
++      expect(r.stdout, cmd).toContain("insp-0001: D001");
++    }
++    // A literal or tilde path still names the other repo, whatever the payload cwd holds.
++    const clean = repo();
++    expect(fagan(clean, ["hook", "gate"], payload(`git -C ~/${fromHome} commit -m x`)).status).toBe(2);
++    expect(fagan(clean, ["hook", "gate"], payload('git -C "$PWD" commit -m x')).status).toBe(0);
++    // An absolute path after an unknown word is known again; a relative one is not.
++    expect(fagan(clean, ["hook", "gate"], payload(`env -C $PWD git -C ${JSON.stringify(root)} commit -m x`)).status).toBe(2);
++    expect(fagan(root, ["hook", "gate"], payload(`env -C $PWD git -C ${JSON.stringify(relative(root, clean))} commit -m x`)).status).toBe(2);
++  });
++
+   it("FM-R9.3 FM-R16.3 a fixed major blocks until follow-up verifies it (review v1 issue 3)", async () => {
+     const root = repo();
+     await toReworkWithMajor(root);
+@@ -211,7 +240,8 @@ describe("fagan hook suggest", () => {
+   });
+ 
+   it("FM-R15.2 stays quiet after a Closed inspection whose rework changed the diff (review v1 issue 5)", async () => {
+-    const root = repo({ ...fixtureConfig, suggestThresholdLoc: 0 });
++    // Threshold 2: the fix below rewrites one line, which is 2 changed lines of rework drift.
++    const root = repo({ ...fixtureConfig, suggestThresholdLoc: 2 });
+     await toReworkWithMajor(root);
+     const ctx = ctxFor(root);
+     writeFileSync(join(root, "src", "calc.ts"), CALC_V3);
+@@ -225,6 +255,30 @@ describe("fagan hook suggest", () => {
+     expect(fagan(root, ["hook", "suggest"], "{}").stdout).toMatch(/1 file\(s\) already covered/);
+   });
+ 
++  it("FM-R15.2 counts code added during rework against the threshold (review v2 issue 2)", async () => {
++    const extra = Array.from({ length: 20 }, (_, i) => `export const k${i} = ${i};`).join("\n");
++    const root = repo({ ...fixtureConfig, suggestThresholdLoc: 10 });
++    await toReworkWithMajor(root);
++    const ctx = ctxFor(root);
++    // The fix (2 changed lines) plus 20 new lines no Reader paraphrased.
++    writeFileSync(join(root, "src", "calc.ts"), `${CALC_V3}${extra}\n`);
++    await recordReworkService(ctx, { inspection_id: ID, role: "author", items: [{ defect_id: "D001", resolution: "fixed", note: "Removed the + 1." }] });
++    expect((await followUpService(ctx, { inspection_id: ID, caller: { kind: "tool", role: "moderator" }, run_checks: true })).phase).toBe("Closed");
++    const r = fagan(root, ["hook", "suggest"], "{}");
++    expect(r.status).toBe(0);
++    expect(r.stdout).toMatch(/^fagan: 22 changed lines against HEAD \(threshold 10\)/);
++    expect(r.stdout).toContain("2 file(s) already covered by a Closed inspection add only the 22 line(s) changed since the inspection read them");
++
++    // A no-defect inspection waiting in FollowUp: edits made before follow_up count too.
++    const waiting = repo({ ...fixtureConfig, suggestThresholdLoc: 10 });
++    await toMeeting(waiting);
++    await closeMeetingService(ctxFor(waiting), { inspection_id: ID, role: "moderator", notes: null });
++    writeFileSync(join(waiting, "docs", "notes.md"), `${NOTES}${extra}\n`);
++    const fu = await followUpService(ctxFor(waiting), { inspection_id: ID, caller: { kind: "tool", role: "moderator" }, run_checks: true });
++    expect(fu.phase).toBe("Closed");
++    expect(fagan(waiting, ["hook", "suggest"], "{}").stdout).toMatch(/^fagan: 20 changed lines against HEAD \(threshold 10\)/);
++  });
++
+   it("FM-R15.2 says when the diff is above sizeLimitLoc (review v1 issue 5)", () => {
+     const root = repo({ ...fixtureConfig, suggestThresholdLoc: 0, sizeLimitLoc: 1 });
+     const r = fagan(root, ["hook", "suggest"], "{}");
+diff --git a/packages/fagan-mcp/test/contract.test.ts b/packages/fagan-mcp/test/contract.test.ts
+index 4bb47bd..422ffbc 100644
+--- a/packages/fagan-mcp/test/contract.test.ts
++++ b/packages/fagan-mcp/test/contract.test.ts
+@@ -143,6 +143,10 @@ describe("fagan-mcp over stdio", () => {
+       ["U002", "src/calc.ts", "typescript"],
+     ]);
+     expect(Object.keys(prep["checklists"] as object).sort()).toEqual(["docs", "typescript"]);
++    // FM-R4.7: unit lines carry the no-newline flag over stdio (every fixture file ends in a newline).
++    const lines = (prep["units"] as Array<{ lines: Array<Record<string, unknown>> }>).flatMap((u) => u.lines);
++    expect(lines.length).toBeGreaterThan(0);
++    expect(lines.every((l) => l["no_newline_at_eof"] === false)).toBe(true);
+     expect((await ok("get_packet", { inspection_id: id, role: "inspector-interfaces", phase: "preparation", limit: 1 }))["next_cursor"]).toBe(
+       "insp-0001:U002",
+     );
+diff --git a/packages/fagan-mcp/test/gate.test.ts b/packages/fagan-mcp/test/gate.test.ts
+index e402b79..2bfb3b5 100644
+--- a/packages/fagan-mcp/test/gate.test.ts
++++ b/packages/fagan-mcp/test/gate.test.ts
+@@ -80,4 +80,40 @@ describe("FM-R16.1 FM-R16.2 commit-gate matcher", () => {
+     expect(gitCommitTargets("sudo -D /w git commit")).toEqual([["/w"]]);
+     expect(gitCommitTargets("git -C x status")).toEqual([]);
+   });
++
++  // Review v2 issue 1: words the shell expands must not be resolved as written.
++  it("FM-R16.2 reports null for directory words the shell would expand", () => {
++    const home = "/home/u";
++    expect(gitCommitTargets('git -C "$PWD" commit', home)).toEqual([[null]]);
++    expect(gitCommitTargets("git -C $HOME/x commit", home)).toEqual([[null]]);
++    expect(gitCommitTargets("git -C ${D:-.} commit", home)).toEqual([[null]]);
++    expect(gitCommitTargets('git -C "$(git rev-parse --show-toplevel)/src" commit', home)).toEqual([[null]]);
++    expect(gitCommitTargets("git -C `pwd` commit", home)).toEqual([[null]]);
++    expect(gitCommitTargets("git -C sub* commit", home)).toEqual([[null]]);
++    expect(gitCommitTargets("git -C {a,b} commit", home)).toEqual([[null]]);
++    expect(gitCommitTargets("env -C $PWD git commit", home)).toEqual([[null]]);
++    expect(gitCommitTargets("sudo --chdir=$D git -C sub commit", home)).toEqual([[null, "sub"]]);
++    expect(gitCommitTargets("git -C ~bob/x commit", home)).toEqual([[null]]);
++    expect(gitCommitTargets("git -C ~+ commit", home)).toEqual([[null]]);
++    expect(gitCommitTargets("git -C ~/x commit")).toEqual([[null]]);
++  });
++
++  it("FM-R16.2 resolves quoted, escaped and tilde directory words as the shell would", () => {
++    const home = "/home/u";
++    expect(gitCommitTargets("git -C ~ commit", home)).toEqual([["/home/u"]]);
++    expect(gitCommitTargets("git -C ~/code/r commit", home)).toEqual([["/home/u/code/r"]]);
++    expect(gitCommitTargets('git -C "~/x" commit', home)).toEqual([["~/x"]]);
++    expect(gitCommitTargets("git -C \\~/x commit", home)).toEqual([["~/x"]]);
++    expect(gitCommitTargets("git -C '$PWD' commit", home)).toEqual([["$PWD"]]);
++    expect(gitCommitTargets('git -C "a\\$b" commit', home)).toEqual([["a$b"]]);
++    expect(gitCommitTargets("git -C a\\*b commit", home)).toEqual([["a*b"]]);
++    expect(gitCommitTargets("git -C 'sub*' commit", home)).toEqual([["sub*"]]);
++    // A quoted character before the first `/` turns tilde expansion off (POSIX 2.6.1).
++    expect(gitCommitTargets('git -C ~"/x" commit', home)).toEqual([["~/x"]]);
++    expect(gitCommitTargets("git -C ~\\/x commit", home)).toEqual([["~/x"]]);
++    expect(gitCommitTargets("git -C ~'' commit", home)).toEqual([["~"]]);
++    expect(gitCommitTargets('git -C ~/"a b" commit', home)).toEqual([["/home/u/a b"]]);
++    // No tilde expansion after `=` in an option word: it is not a variable assignment.
++    expect(gitCommitTargets("env --chdir=~/x git commit", home)).toEqual([["~/x"]]);
++  });
+ });
+diff --git a/packages/fagan-mcp/test/metrics.property.test.ts b/packages/fagan-mcp/test/metrics.property.test.ts
+index 9f263d1..eb1b6d2 100644
+--- a/packages/fagan-mcp/test/metrics.property.test.ts
++++ b/packages/fagan-mcp/test/metrics.property.test.ts
+@@ -110,6 +110,67 @@ describe("metrics properties", () => {
+     );
+   });
+ 
++  // Review v2 issue 4: the time-in-phase walk must account for every
++  // millisecond between the meeting's end and the end of the inspection.
++  it("FM-R10.1 FM-R10.3 rework plus follow-up equals the time from meetingEnd to closedAt or abandonedAt", () => {
++    const t0 = Date.parse("2026-01-01T00:00:00.000Z");
++    const at = (ms: number): string => new Date(t0 + ms).toISOString();
++    const gapArb = fc.oneof(fc.constant(0), fc.integer({ min: 0, max: 30 * 24 * 3_600_000 }));
++    fc.assert(
++      fc.property(
++        fc.boolean(),
++        gapArb,
++        fc.array(gapArb, { maxLength: 6 }),
++        fc.constantFrom("closed" as const, "abandoned" as const),
++        gapArb,
++        (hadDefects, meetingOffset, gaps, ending, tail) => {
++          // Attempts in time order: failures, then one pass `tail` later when the
++          // inspection closes; an abandoned inspection ends `tail` after the last failure.
++          let now = meetingOffset;
++          const attempts = gaps.map((g) => {
++            now += g;
++            return { at: at(now), passed: false };
++          });
++          const end = now + tail;
++          if (ending === "closed") attempts.push({ at: at(end), passed: true });
++          const m = computeMetrics({
++            timestamps: {
++              planningStart: at(0),
++              planningEnd: at(0),
++              overviewStart: at(0),
++              preparationStart: at(0),
++              meetingStart: at(0),
++              meetingEnd: at(meetingOffset),
++              reworkStart: null,
++              followupStart: null,
++              closedAt: ending === "closed" ? at(end) : null,
++              abandonedAt: ending === "abandoned" ? at(end) : null,
++            },
++            changedLoc: 10,
++            defects: hadDefects ? [defect(0, "major")] : [],
++            attempts,
++            rateWarnings: { maxPreparationLocPerHour: null, maxInspectionLocPerHour: null },
++            computedAt: at(end),
++          });
++          const { rework, followup } = m.durationsMs;
++          expect((rework ?? 0) + (followup ?? 0)).toBe(end - meetingOffset);
++          for (const v of [rework, followup]) if (v !== null) expect(v).toBeGreaterThanOrEqual(0);
++          // A null means the phase was never entered: Rework without defects or a failed
++          // attempt, FollowUp after a meeting with defects and no attempt.
++          const enteredRework = hadDefects || attempts.some((a) => !a.passed);
++          const enteredFollowup = !hadDefects || attempts.length > 0;
++          expect(rework === null).toBe(!enteredRework);
++          expect(followup === null).toBe(!enteredFollowup);
++          for (const field of ["durationsMs.rework", "durationsMs.followup"] as const) {
++            const reasons = m.nullReasons.filter((r) => r.field === field);
++            expect(reasons).toEqual(valueOf(m, field) === null ? [{ field, reason: "phase_not_reached" }] : []);
++          }
++        },
++      ),
++      { numRuns: 500 },
++    );
++  });
++
+   it("FM-R10.6 rates never increase as duration grows", () => {
+     const t0 = Date.parse("2026-01-01T00:00:00.000Z");
+     const at = (ms: number): string => new Date(t0 + ms).toISOString();
+diff --git a/packages/fagan-mcp/test/packet.test.ts b/packages/fagan-mcp/test/packet.test.ts
+index b219847..335a975 100644
+--- a/packages/fagan-mcp/test/packet.test.ts
++++ b/packages/fagan-mcp/test/packet.test.ts
+@@ -1,6 +1,6 @@
+ import { describe, expect, it } from "vitest";
+-import { parseUnifiedDiff, type DiffHunk } from "../src/core/diff.js";
+-import { buildPacket, comparePaths, countChangedLoc, selectChecklist, splitHunk } from "../src/core/packet.js";
++import { parseUnifiedDiff, type DiffFile, type DiffHunk } from "../src/core/diff.js";
++import { buildPacket, comparePaths, countChangedLoc, reworkDriftLoc, selectChecklist, splitHunk } from "../src/core/packet.js";
+ import { loadChecklists, assertConfigChecklists } from "../src/store/checklists.js";
+ import { readFileSync } from "node:fs";
+ import { fileURLToPath } from "node:url";
+@@ -125,6 +125,29 @@ describe("FM-R4.1 FM-R4.2 FM-R4.3 packet splitting", () => {
+     expect(packet.files.find((f) => f.path === "src/a.ts")).toMatchObject({ blobBefore: "b1", blobAfter: "b2" });
+     expect(packet.files.find((f) => f.path === "docs/x.md")).toMatchObject({ blobBefore: null, blobAfter: null });
+   });
++
++  // Review v2 issue 2: rework drift counts toward the hook suggest threshold.
++  it("FM-R15.2 rework drift counts the changed lines that differ between two diffs of a file", () => {
++    const fileDiff = (path: string, body: string[]): DiffFile => {
++      const [file] = parseUnifiedDiff([`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...body, ""].join("\n"));
++      return file as DiffFile;
++    };
++    const inspected = fileDiff("src/a.ts", ["@@ -1,2 +1,2 @@", " keep", "-old", "+new"]);
++    expect(reworkDriftLoc(inspected, inspected, [])).toBe(0);
++    // The fix rewrites the added line: one line gone, one line new.
++    const fixed = fileDiff("src/a.ts", ["@@ -1,2 +1,2 @@", " keep", "-old", "+newer"]);
++    expect(reworkDriftLoc(inspected, fixed, [])).toBe(2);
++    // Three lines added during rework count 3, in either order of arguments.
++    const grown = fileDiff("src/a.ts", ["@@ -1,2 +1,5 @@", " keep", "-old", "+new", "+a", "+b", "+c"]);
++    expect(reworkDriftLoc(inspected, grown, [])).toBe(3);
++    expect(reworkDriftLoc(grown, inspected, [])).toBe(3);
++    // A line that only gains its final newline is a different line.
++    const eof = fileDiff("src/a.ts", ["@@ -1,2 +1,2 @@", " keep", "-old", "+new", "\\ No newline at end of file"]);
++    expect(reworkDriftLoc(inspected, eof, [])).toBe(2);
++    // Excluded files count 0, as in FM-R4.4.
++    const lock = fileDiff("package-lock.json", ["@@ -1 +1 @@", "-{}", "+{ }"]);
++    expect(reworkDriftLoc(fileDiff("package-lock.json", ["@@ -1 +1 @@", "-{}", "+[]"]), lock, testConfig.exclude)).toBe(0);
++  });
+ });
+ 
+ describe("FM-R4.6 checklist selection", () => {

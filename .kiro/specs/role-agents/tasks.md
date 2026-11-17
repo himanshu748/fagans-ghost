@@ -77,11 +77,11 @@ Tasks 1 to 8 are the spec, agents, hooks, launcher and config tests (step 3, FEA
   - [x] 14.1 A probe hook that sleeps longer than its timeout shows the unit live. Seconds: with `timeout` 2, a 5 s hook got SIGTERM about 2 s after the tool finished and a 0.3 s control finished; Kiro reported both as `completed`
   - _Requirements: RA-R6.4, RA-R6.5_
 
-- [ ] 15. First real inspection of this repo (FEAT-004)
+- [x] 15. First real inspection of this repo (FEAT-004)
   - [x] 15.1 Record the real `SIZE_LIMIT_EXCEEDED` result for the whole repo (2026-11-17, Node SDK over real stdio MCP: 12,483 > 1,500; no inspection stored; receipt in docs/experiments/)
-  - [ ] 15.2 Blocked on 2026-11-17 by Kiro `UsageLimitReachedError` (docs/STEP3_RESUME.md). Run insp-0001 on `647a96b..4b4c692` with the moderator and its four sub-agents, stopping at the Author's part (no agent records rework or waives)
-  - [ ] 15.3 Commit the real `.fagan/inspections/insp-0001/` record and a test that parses every committed `report.json`
+  - [x] 15.2 After Kiro `UsageLimitReachedError`, the user authorized Codex. A real insp-0001 was produced with Codex roles; this does not satisfy a full Kiro role-run claim (docs/inspections/insp-0001.md). Original Kiro task: Run insp-0001 on `647a96b..4b4c692` with the moderator and its four sub-agents, stopping at the Author's part (no agent records rework or waives)
+  - [x] 15.3 Commit the real `.fagan/inspections/insp-0001/` record and a test that parses every committed `report.json`
   - _Requirements: RA-R4.1 to RA-R4.8, RA-R8.1_
 
-- [ ] 16. Step 7: the root README tells the Author not to choose "Always allow" for `record_rework`
+- [x] 16. Step 7: the root README tells the Author not to choose "Always allow" for `record_rework`
   - _Requirements: RA-R8.2_
