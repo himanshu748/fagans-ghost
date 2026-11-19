@@ -29,6 +29,8 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await expect(page.locator(".phase-banner")).toContainText(
     "Inspection closed",
   );
+  const findingLink = page.getByRole("button", { name: /D001 · major/ });
+  await expect(findingLink).toHaveCount(0);
   const phases = page.getByRole("navigation", { name: "Recorded phases" });
   expect(await phases.evaluate((rail) => rail.scrollWidth <= rail.clientWidth)).toBe(true);
   const rework = phases.getByRole("button", { name: "Jump to Rework" });
@@ -41,13 +43,21 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await phases.getByRole("button", { name: "Jump to Closed" }).click();
   await expect(page.locator(".event-count")).toHaveText("58 / 59 · Follow-up");
   await expect(page.locator(".reading-desk .phase-banner")).toContainText("Follow-up passed");
+  await findingLink.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("article", { name: "D001, major defect" })).toBeFocused();
+  await expect(page.getByLabel("Reading unit", { exact: true })).toHaveValue("U023");
+  await expect(page.locator(".event-count")).toHaveText("58 / 59 · Follow-up");
+  await page.getByRole("button", { name: /57 Author records rework/ }).click();
+  await expect(page.locator(".event-count")).toHaveText("57 / 59 · Author records rework");
+  await expect(page.locator(".reading-desk .phase-banner")).toHaveCount(0);
   const readingOption = page
-    .getByLabel("Jump to a recorded event")
+    .getByLabel("Jump to event")
     .locator("option")
     .filter({ hasText: "The Reader speaks" })
     .first();
   await page
-    .getByLabel("Jump to a recorded event")
+    .getByLabel("Jump to event")
     .selectOption((await readingOption.getAttribute("value")) ?? "0");
   await expect(page.locator(".paraphrase")).not.toContainText("has not spoken");
   await page.getByLabel("Reduce motion").check();
@@ -90,10 +100,8 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
     ),
   ).toBe(true);
   await page.getByRole("button", { name: "Room view" }).click();
-  const options = page.getByLabel("Jump to a recorded event").locator("option");
-  await page
-    .getByLabel("Jump to a recorded event")
-    .selectOption((await options.last().getAttribute("value")) ?? "0");
+  const eventPicker = page.getByLabel("Jump to event");
+  await phases.getByRole("button", { name: "Jump to Closed" }).click();
   await page.getByLabel("Reading unit", { exact: true }).selectOption("U023");
   await expect(
     page.getByRole("article", { name: "D001, major defect" }),
@@ -112,6 +120,8 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
+  const finalEventValue = await eventPicker.locator("option").last().getAttribute("value");
+  await eventPicker.selectOption(finalEventValue ?? "0");
   await page.getByRole('button', { name: 'Play ceremony' }).click();
   await expect(page.locator('.event-count')).toContainText(/^1 \/ /);
   await expect(page.locator('.event-count')).not.toContainText(/^1 \/ /, { timeout: 5000 });

@@ -5,20 +5,22 @@ specific change. Public entry and functional viewer form one static app: a
 brief invitation and real demo lead into the reading room; report view remains
 available throughout. No new product concept or service is introduced.
 
-Georgia carries the title, Reader's passage and report headings. System sans
-keeps controls compact, and Menlo separates source and event counts from prose.
-The entrance uses a locally bundled illustration of an empty inspection table
-against charcoal and brass. The reading desk moves to warm paper with a dark
-panel for the paraphrase and separate colors for additions, deletions and
-findings. The report keeps its pale green listing bands and print layout.
+Georgia carries the entrance, the Reader's paraphrase and the report headings.
+System sans handles the room title and controls, while Menlo separates source and
+event counts from prose. The entrance and replay share charcoal and brass. In
+the replay the diff uses muted red and green bands, with brass reserved for the
+current step and the line with a finding. The report uses warm paper and keeps
+its pale green listing bands and print layout.
 
 The title identifies the saved outcome. A separate phase rail marks the phase
 at the replay cursor and lets readers jump to the first recorded event in each
 phase. The event picker sits beside the transport controls above the desk.
-The sidebar holds the table and recent events, while the paraphrase, code and
-findings share the wider panel. On mobile the reading desk appears above the
-sidebar, with playback still above both. Follow-up appears near its event and
-above the code region, where it stays visible even for long units.
+The desktop layout gives the reading desk the widest column, with a quieter
+timeline on the left and the findings and role table on the right. A timeline
+row replays its event. A finding shortcut selects its unit and focuses the
+inline finding without moving the event cursor. On mobile, finding shortcuts
+sit between playback and the reading desk so the source is still one tap away.
+Follow-up appears above the code region, where it stays visible for long units.
 
 The Vite/TypeScript app imports the existing browser-safe report schema/parser
 and green-bar formatter from fagan-mcp. It does not import the service, store,

@@ -63,14 +63,20 @@ also prompted fixes for file-picker landmarks, a listing's keyboard access and
 heading order. The glyph reveal keeps one accessible full sentence and is
 removed by either reduced-motion setting.
 
-The screenshots now show the November 19 redesign. The entrance pairs the same
-Georgia headings with a locally bundled WebP illustration. The reading desk
-uses the earlier reference patterns of a clear title, compact metadata, ruled
-sections and a separate code gutter. During visual review at 1440×900 and
-390×844, phase shortcuts were moved into the playback area and made to wrap
-on mobile so the active stop stayed visible. The built viewer's browser test
-checks a keyboard phase jump, focus retention, and the appearance of follow-up
-at event 58. It also checks contrast at the tested sizes with axe.
+The entrance pairs Georgia headings with a locally bundled WebP illustration.
+For the replay redesign, we inspected Linear's before-and-after navigation
+images and GitHub's Files changed screenshot. Linear's quieter inactive rows
+informed the event timeline. GitHub's compact file header, line number gutter
+and diff bands informed the source panel. Fagan's Ghost uses its own charcoal
+and brass palette and puts the findings and role table beside the reading.
+[Linear design notes](https://linear.app/now/behind-the-latest-design-refresh)
+and [GitHub diff reference](https://github.blog/changelog/2026-01-22-improved-pull-request-files-changed-page-on-by-default/).
+
+The browser checks exercise the redesigned room at 1440×900 and 390×844. They
+verify that a keyboard jump focuses D001's inline card while preserving event
+58, that the timeline can return to event 57, and that the follow-up banner
+disappears at that earlier point. The axe scan covers the landing, room and
+report at both viewport sizes.
 
 The room and report show D001’s original allegation and the Author’s waiver.
 The JSON contains the actual decision and follow-up, and the plain listing

@@ -22,7 +22,7 @@ npm run dev --workspace inspection-room
 
 Open the local URL Vite prints, then choose **Enter the demo inspection**. Or choose **Open a report** and select `.fagan/inspections/insp-0001/report.json`. Uploaded files stay in the browser. No backend, account or model API is involved.
 
-Jump to a recorded phase above the reading desk or use the playback controls and arrow keys to step through events. Select a reading unit to see its code and pinned findings, and switch to **Report view** for the plain listing. Reduced motion follows the operating system and can also be enabled in the viewer. The shortcuts dialog lists keyboard controls.
+Jump to a phase, choose a timeline event, or step with the arrow keys. Select a reading unit to see its code, or choose a finding to jump to its recorded line. Switch to **Report view** for the plain listing. Reduced motion follows the operating system and can also be enabled in the viewer. The shortcuts dialog lists keyboard controls.
 
 The bundled record is an actual inspection of this repository: 501 changed lines, 40 Reader paraphrases and one major finding, D001, concerning Git's attached `-C/path` option. The [verification note](docs/inspections/insp-0001-D001-verification.md) shows that Git rejects this syntax, so the human Author explicitly waived D001 as a false positive. It was conducted by **Codex role agents**, using the real MCP server after Kiro reached its usage limit. Its current phase is **Closed**: follow-up reran the build and tests successfully, with D001 retained as **waived**, not fixed or exorcised. See [the exported record](.fagan/inspections/insp-0001/report.json) and [Kiro usage](KIRO_USAGE.md) for provenance.
 

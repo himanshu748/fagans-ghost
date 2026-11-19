@@ -1,4 +1,5 @@
 import "./style.css";
+import "./room.css";
 import {
   atEvent,
   reworkAt,
@@ -250,6 +251,7 @@ function render() {
       ? document.activeElement.dataset["focus"]
       : undefined;
   main.replaceChildren();
+  root.classList.toggle("room-view", !!report && !loading && !error && !plain);
   viewButton.textContent = plain ? "Room view" : "Report view";
   viewButton.setAttribute("aria-pressed", String(plain));
   if (loading) {
@@ -392,6 +394,21 @@ function jumpToEvent(index: number) {
   render();
 }
 
+function revealFinding(defect: Defect) {
+  pause();
+  selectedUnit = defect.unitId;
+  render();
+  const card = [...main.querySelectorAll<HTMLElement>("[data-finding]")].find(
+    (node) => node.dataset["finding"] === defect.id,
+  );
+  if (card) {
+    card.focus({ preventScroll: true });
+    card.scrollIntoView({ block: "nearest", inline: "nearest" });
+  } else {
+    main.querySelector<HTMLElement>('[data-focus="units"]')?.focus();
+  }
+}
+
 function room(r: Report) {
   const state = atEvent(r, cursor);
   const unit = r.packet.units.find((u) => u.id === selectedUnit) ?? state.unit;
@@ -434,7 +451,7 @@ function room(r: Report) {
   const transport = el("div", "", "transport");
   const buttons = el("div", "", "transport-buttons");
   buttons.append(back, toggle, next);
-  const eventLabel = el("label", "Jump to a recorded event", "field-label");
+  const eventLabel = el("label", "Jump to event", "field-label");
   const select = el("select");
   select.dataset["focus"] = "events";
   eventLabel.append(select);
@@ -455,34 +472,61 @@ function room(r: Report) {
   main.append(controls);
 
   const layout = el("div", "", "room-grid");
-  const aside = el("aside", "", "room-aside");
-  const roster = el("section", "", "roster");
-  roster.append(el("h2", "Around the table"), roleTable(state.event?.role));
-  aside.append(roster);
-  aside.append(el("h2", "Recent events"));
-  aside.append(
-    el(
-      "p",
-      state.event
-        ? `${new Date(state.event.at).toISOString()} · ${state.event.phase}`
-        : "No events recorded.",
-      "fineprint",
-    ),
-  );
+  const history = el("aside", "", "room-history");
+  history.setAttribute("aria-label", "Event timeline");
+  history.append(el("h2", "Event timeline"));
   const eventLog = el("ol", "", "event-log");
-  r.events.slice(Math.max(0, cursor - 3), cursor + 1).forEach((e) => {
+  const historyStart = Math.max(0, cursor - 6);
+  r.events.slice(historyStart, cursor + 1).forEach((e, offset) => {
+    const index = historyStart + offset;
     const item = el("li");
-    if (e === state.event) item.setAttribute("aria-current", "step");
-    item.append(
+    const eventButton = button("", () => jumpToEvent(index), "event-row");
+    eventButton.dataset["focus"] = `history-${index}`;
+    if (index === cursor) eventButton.setAttribute("aria-current", "step");
+    eventButton.append(
       el("span", String(e.seq).padStart(2, "0"), "event-index"),
       el("span", eventName(e.tool)),
       el("small", e.role ?? "server"),
     );
+    item.append(eventButton);
     eventLog.append(item);
   });
-  aside.append(eventLog);
+  if (state.event) {
+    history.append(eventLog);
+    const fullTime = new Date(state.event.at).toISOString();
+    const time = el("time", `${fullTime.slice(11, 19)} UTC`, "fineprint event-time");
+    time.dateTime = state.event.at;
+    time.title = fullTime;
+    history.append(time);
+  } else history.append(el("p", "No events recorded.", "fineprint"));
+
+  const findings = el("aside", "", "finding-index");
+  findings.setAttribute("aria-label", "Findings at this point");
+  findings.append(el("h2", "Findings at this point"));
+  if (!state.defects.length) {
+    findings.classList.add("empty");
+    findings.append(el("p", "No findings recorded yet.", "fineprint"));
+  } else {
+    const list = el("ul");
+    for (const defect of state.defects) {
+      const item = el("li");
+      const link = button("", () => revealFinding(defect), "finding-link");
+      link.append(
+        el("span", `${defect.id} · ${defect.severity}`, "finding-label"),
+        el("span", `Line ${defect.location.lineStart} ↗`, "finding-location"),
+      );
+      item.append(link);
+      list.append(item);
+    }
+    findings.append(list);
+  }
+  const roster = el("aside", "", "roster");
+  roster.setAttribute("aria-label", "Around the table");
+  roster.append(el("h2", "Around the table"), roleTable(state.event?.role));
+
   const work = el("section", "", "reading-desk");
-  work.append(el("h2", "Reading desk"));
+  const deskHeader = el("div", "", "desk-header");
+  deskHeader.append(el("h2", "Reading desk"));
   const unitLabel = el("label", "Reading unit", "field-label");
   const units = el("select");
   units.setAttribute("aria-label", "Reading unit");
@@ -499,7 +543,8 @@ function room(r: Report) {
     render();
   });
   unitLabel.append(units);
-  work.append(unitLabel);
+  deskHeader.append(unitLabel);
+  work.append(deskHeader);
   if (state.attempt)
     work.append(
       el(
@@ -512,7 +557,9 @@ function room(r: Report) {
     );
   const reading = state.readings.find((x) => x.unitId === unit?.id);
   const passage = el("div", "", "reader-passage");
-  passage.append(el("p", "THE READER", "eyebrow"));
+  const readerLabel = el("p", "Reader’s paraphrase", "reader-label");
+  if (reading) readerLabel.append(el("span", reading.id, "reading-id"));
+  passage.append(readerLabel);
   const para = el("p", "", "paraphrase");
   const words =
     reading?.paraphrase ??
@@ -540,7 +587,19 @@ function room(r: Report) {
     code.tabIndex = 0;
     code.setAttribute("role", "region");
     code.setAttribute("aria-label", `Code for ${unit.id}`);
-    code.append(el("div", unit.file, "code-file"));
+    const fileHeader = el("div", "", "code-file");
+    const file = el("span", unit.file, "file-path");
+    file.title = unit.file;
+    const additions = unit.lines.filter((line) => line.kind === "add").length;
+    const deletions = unit.lines.filter((line) => line.kind === "del").length;
+    const diffStats = el("span", "", "diff-stats");
+    diffStats.setAttribute("aria-label", `${additions} additions, ${deletions} deletions`);
+    diffStats.append(
+      el("span", `+${additions}`, "added-count"),
+      el("span", `−${deletions}`, "deleted-count"),
+    );
+    fileHeader.append(file, diffStats);
+    code.append(fileHeader);
     for (const line of unit.lines) {
       const row = el("div", "", `code-line ${line.kind}`);
       row.append(
@@ -560,6 +619,7 @@ function room(r: Report) {
           d.location.lineStart ===
             (d.location.side === "new" ? line.newNo : line.oldNo),
       );
+      if (pinned.length) row.classList.add("has-finding");
       for (const d of pinned) code.append(defectCard(r, d, cursor));
     }
     work.append(code);
@@ -568,7 +628,7 @@ function room(r: Report) {
         el("p", "No defects logged for this unit at this point.", "fineprint"),
       );
   }
-  layout.append(aside, work);
+  layout.append(findings, work, history, roster);
   main.append(layout);
   live.textContent = `Event ${cursor + 1}: ${eventName(state.event?.tool ?? "")}. ${state.event?.role ?? "server"}.`;
 }
@@ -580,6 +640,7 @@ function defectCard(r: Report, d: Defect, index = r.events.length - 1) {
     `ghost ${d.severity}${status.startsWith("Exorcised") ? " verified" : ""}`,
   );
   card.tabIndex = 0;
+  card.dataset["finding"] = d.id;
   card.setAttribute("aria-label", `${d.id}, ${d.severity} defect`);
   card.append(
     el(
