@@ -2,7 +2,7 @@
 
 **Target length: 2:50 (170 seconds).** Record the working app and Kiro on the Author's laptop. This is a shotlist, not a finished or uploaded video. Keep a few seconds below the three-minute limit after titles and transitions.
 
-## Before recording
+## Before recording a fresh Kiro ceremony
 
 - Build the current checkout and run the checks in [README.md](README.md#develop-and-verify).
 - Restore available Kiro access without enabling paid overages, then verify the final suggestion hook and a complete real role-agent ceremony. Current demo readings are from Codex and must remain labeled that way if used.
@@ -24,6 +24,24 @@
 | 1:48–2:05 | Actual follow-up reruns checks and returns its state; export the report | “The server checks the evidence. The Author remains responsible for the decision.” A waived major must remain visibly waived, not “fixed.” |
 | 2:05–2:33 | Load that exported JSON in the Inspection Room; play Reader/defect events; select Report view and Reduce motion | “One record, two ways to read it. Nothing in this room is invented.” Show only follow-up transitions that exist in the export. |
 | 2:33–2:50 | Quick `.kiro` tour: specs, steering, scoped agents, hooks; finish on the room | “Fagan's Ghost. A method revived. A record kept. The Author has the final word.” |
+
+## Recording cut using the existing Codex inspection
+
+If you've reached Kiro's usage limit, record the local Inspection Room and use the saved evidence below. Choose **Enter the demo inspection**. The numbers are the positions in **Jump to a recorded event**. Keep the caption **Real repository inspection · Codex roles · local MCP** visible during the replay. [Start the local viewer](README.md#open-the-inspection-room).
+
+| Time | Capture | Caption or talking point |
+| --- | --- | --- |
+| 0:00–0:10 | Show the real diff and land on the Inspection Room | “AI can write the change. Who reads it closely before it ships?” |
+| 0:10–0:29 | Show event **1** and the title of the inspected range | “The Moderator opened a real diff. The server ran the entry checks and split 501 changed lines into 40 units.” |
+| 0:29–0:51 | Jump to event **31** and select reading unit **U023** | “The Reader explains what the code does. The inspectors discuss it afterward.” |
+| 0:51–1:11 | Jump to event **52**, select **U023**, and show D001 appear | “The Logic inspector raised this candidate major. The Scribe recorded it at the relevant line.” |
+| 1:11–1:28 | Show the saved [Kiro CLI hook experiment](docs/experiments.md#e2-and-e3-the-commit-gate-in-a-live-session-step-3) with its blocked result and unchanged commit count | **Earlier Kiro CLI test · separate scratch repository.** This is the live Kiro gate evidence. The [real inspection’s gate receipt](docs/experiments/2026-11-17-real-gate.json) separately records direct evaluation. |
+| 1:28–1:48 | Show the Git result from the [D001 verification](docs/inspections/insp-0001-D001-verification.md), then event **57** on **U023** | “Git rejected the syntax in the finding. The Author waived it as a false positive and the record kept the reason.” |
+| 1:48–2:04 | Show event **58** and the passing build and tests in [the saved follow-up](docs/inspections/insp-0001-author-decision.json) | “Follow-up ran the configured checks and closed the inspection.” |
+| 2:04–2:32 | Show **Report view**, the waiver reason, **Reduce motion**, and the JSON download | “The replay and plain report come from the same export.” |
+| 2:32–2:50 | Tour `.kiro/specs`, `.kiro/agents`, `.kiro/hooks` and `.kiro/steering` | “Kiro ran the earlier hook and delegation tests. Codex ran the inspection shown here after Kiro reached its quota.” |
+
+The replay supplies the inspection opening, meeting and follow-up. A fresh Kiro suggestion and a verified source fix would require a separate live run with those events. The public video still needs to be recorded, reviewed and uploaded by the Author.
 
 ## Capture and edit
 

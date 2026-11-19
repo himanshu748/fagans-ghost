@@ -59,14 +59,13 @@ The ceremony is explicit:
 
 The [manual ritual](.kiro/steering/inspection-ritual.md) contains the role handoffs. Three [hooks](.kiro/hooks/) suggest inspections after large changes, block Kiro shell commits with unresolved majors, and run follow-up after recorded rework. The suggestion asks for acknowledgment; it does not silently start a meeting.
 
-To inspect an existing record without a model, use the same stdio server through the development bridge:
+To read the saved inspection in a terminal:
 
 ```sh
-node scripts/mcp-call.mjs metrics '{"inspection_id":"insp-0001"}'
-node packages/fagan-mcp/dist/cli.js export insp-0001
+less .fagan/inspections/insp-0001/report.txt
 ```
 
-For a new real inspection, the bridge also accepts `open_inspection` with `role`, `title`, `base` and `head`. It does not create readings or findings for you. Tool schemas and role requirements are defined in [server.ts](packages/fagan-mcp/src/server/server.ts).
+For a new real inspection, `node scripts/mcp-call.mjs open_inspection '<JSON arguments>'` calls the same stdio server. Supply `role`, `title`, `base` and `head`. This starts an inspection. The participants then provide readings and findings. Metrics and export calls append to the inspection log, so use the saved reports when replaying the bundled demo. See [tool schemas and roles](packages/fagan-mcp/src/server/server.ts).
 
 ## Bring the ritual to another repository
 

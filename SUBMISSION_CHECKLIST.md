@@ -13,7 +13,7 @@ The [official rules](https://kiroween.devpost.com/rules), checked November 17, 2
 | Root `.kiro/` | Specs, hooks, steering, agents and MCP settings exist. Run `npm run check:repo`, confirm they are committed and inspect them on GitHub |
 | Functional app | Local viewer implemented. Hosted URL pending: `https://YOUR_GITHUB_USERNAME.github.io/fagans-ghost/` |
 | Description | [DEVPOST_STORY.md](DEVPOST_STORY.md); update remaining-state paragraph after final verification |
-| YouTube video | Not recorded or uploaded. Public URL: `YOUR_PUBLIC_YOUTUBE_URL`; plan in [VIDEO_SHOTLIST.md](VIDEO_SHOTLIST.md) |
+| YouTube video | Not recorded or uploaded. Public URL: `YOUR_PUBLIC_YOUTUBE_URL`. The [shotlist](VIDEO_SHOTLIST.md) includes a cut using the saved Codex inspection and earlier Kiro evidence. |
 | Kiro write-up | [KIRO_USAGE.md](KIRO_USAGE.md); includes actual Kiro experiments, Codex provenance and missing IDE checks |
 | Category | Resurrection |
 | Student bonus | Candidate only; eligibility and personal fields below remain unconfirmed |
@@ -63,15 +63,19 @@ Optional blog URL: `YOUR_BLOG_URL`. Publish during the submission period and ide
 
 **These commands are for the Author. They create public resources and have not been run.** First finish local validation and inspect the final commit. GitHub CLI must be installed; authenticate only to the account that should own this public project.
 
+Before pushing, review the author and committer addresses in `git log --format='%h %ae %ce'` and the local paths in the experiment receipts. A push of this branch publishes its reachable history together with the current files.
+
 ```sh
 cd /absolute/path/to/fagans-ghost
 npm ci
 npm test
 npm run build
+npx playwright install chromium
 npm run test:e2e
 npm run build:power
 npm run test:power
 npm run check:repo
+npm run check:demo
 git status --short
 git log -1 --oneline
 git remote -v
