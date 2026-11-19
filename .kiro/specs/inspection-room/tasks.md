@@ -7,3 +7,4 @@
 - [x] Add keyboard, responsive and reduced-motion behavior. (IR-R7,8)
 - [x] Copy an actual exported report and enforce hash provenance. (IR-R10)
 - [x] Run unit, build, browser/axe checks; inspect desktop/mobile visuals.
+- [x] Redesign the entrance and reading desk, and add phase jumps to playback. (IR-R2,4,8,11)

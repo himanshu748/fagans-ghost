@@ -13,7 +13,7 @@ The [official rules](https://kiroween.devpost.com/rules), checked November 17, 2
 | Root `.kiro/` | Specs, hooks, steering, agents and MCP settings exist. Run `npm run check:repo`, confirm they are committed and inspect them on GitHub |
 | Functional app | Local viewer implemented. Hosted URL pending: `https://YOUR_GITHUB_USERNAME.github.io/fagans-ghost/` |
 | Description | [DEVPOST_STORY.md](DEVPOST_STORY.md); update remaining-state paragraph after final verification |
-| YouTube video | A 1:50 captioned cut was recorded locally using the saved Codex inspection and earlier Kiro CLI evidence. Author review and upload are pending. Public URL: `YOUR_PUBLIC_YOUTUBE_URL`. [Shotlist](VIDEO_SHOTLIST.md) |
+| YouTube video | A 1:50 captioned cut shows the earlier viewer layout, the saved Codex inspection and Kiro CLI evidence. Author review and upload are pending. Public URL: `YOUR_PUBLIC_YOUTUBE_URL`. [Shotlist](VIDEO_SHOTLIST.md) |
 | Kiro write-up | [KIRO_USAGE.md](KIRO_USAGE.md); includes actual Kiro experiments, Codex provenance and missing IDE checks |
 | Category | Resurrection |
 | Student bonus | Candidate only; eligibility and personal fields below remain unconfirmed |

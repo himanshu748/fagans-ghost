@@ -29,6 +29,18 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await expect(page.locator(".phase-banner")).toContainText(
     "Inspection closed",
   );
+  const phases = page.getByRole("navigation", { name: "Recorded phases" });
+  expect(await phases.evaluate((rail) => rail.scrollWidth <= rail.clientWidth)).toBe(true);
+  const rework = phases.getByRole("button", { name: "Jump to Rework" });
+  await rework.focus();
+  await page.keyboard.press("Enter");
+  await expect(rework).toBeFocused();
+  await expect(rework).toHaveAttribute("aria-current", "step");
+  await expect(page.locator(".event-count")).toHaveText("54 / 59 · Meeting closed");
+  await expect(page.locator(".reading-desk .phase-banner")).toHaveCount(0);
+  await phases.getByRole("button", { name: "Jump to Closed" }).click();
+  await expect(page.locator(".event-count")).toHaveText("58 / 59 · Follow-up");
+  await expect(page.locator(".reading-desk .phase-banner")).toContainText("Follow-up passed");
   const readingOption = page
     .getByLabel("Jump to a recorded event")
     .locator("option")
@@ -89,8 +101,9 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await expect(page.locator(".reading-desk .phase-banner")).toContainText("Follow-up passed");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  await page.locator(".ghost strong").scrollIntoViewIfNeeded();
-  await expect(page.locator(".ghost strong")).toBeInViewport();
+  const waiver = page.locator(".ghost p").filter({ hasText: "Author's waiver" });
+  await waiver.scrollIntoViewIfNeeded();
+  await expect(waiver).toBeInViewport();
   await page.screenshot({
     path: `test-results/room-${info.project.name}.png`,
     fullPage: true,

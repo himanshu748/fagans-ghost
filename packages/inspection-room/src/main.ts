@@ -35,6 +35,9 @@ live.setAttribute("role", "status");
 live.setAttribute("aria-live", "polite");
 const header = el("header", "", "masthead");
 const brand = button("Fagan's Ghost", () => reset(), "brand");
+const brandSeal = el("span", "FG", "brand-seal");
+brandSeal.setAttribute("aria-hidden", "true");
+brand.prepend(brandSeal);
 const topActions = el("nav", "", "top-actions");
 topActions.setAttribute("aria-label", "View controls");
 const viewButton = button("Report view", () => {
@@ -55,6 +58,7 @@ topActions.append(motionLabel, helpButton, viewButton);
 header.append(brand, el("span", "THE INSPECTION ROOM", "edition"), topActions);
 const main = el("main");
 main.id = "main";
+main.tabIndex = -1;
 const skip = el("a", "Skip to inspection", "skip");
 skip.href = "#main";
 const help = el("dialog");
@@ -69,9 +73,10 @@ help.append(
   ),
   button("Close shortcuts", () => help.close()),
 );
-const footer = el(
-  "footer",
-  "A method revived. A record kept. The Author has the final word.",
+const footer = el("footer");
+footer.append(
+  el("span", "Fagan's Ghost", "footer-brand"),
+  el("span", "The Inspection Room"),
 );
 root.append(skip, header, live, main, footer, help);
 const osMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -121,7 +126,7 @@ function step(delta: number) {
   render();
 }
 function play() {
-  if (!report || !report.events.length) return;
+  if (!report || plain || report.events.length < 2) return;
   if (playing) pause();
   else {
     if (cursor === report.events.length - 1) cursor = 0;
@@ -166,6 +171,7 @@ async function load(
     if (current === generation) {
       loading = false;
       render();
+      main.focus();
     }
   }
 }
@@ -210,10 +216,7 @@ function roleTable(active: string | null = null) {
   const board = el("div", "", "ritual-board");
   board.setAttribute("aria-label", "Inspection roles");
   const ring = el("div", "", "table-ring");
-  ring.append(
-    el("span", "FG", "monogram"),
-    el("span", "READ · QUESTION · RECORD", "table-motto"),
-  );
+  ring.append(el("span", "FG", "monogram"));
   const planchette = el("span", "◦", "planchette");
   planchette.setAttribute("aria-hidden", "true");
   ring.append(planchette);
@@ -276,8 +279,14 @@ function render() {
   }
   const r = report;
   const title = el("section", "", "inspection-heading");
-  title.append(
-    el("p", `${r.inspection.id.toUpperCase()} / ${sourceName}`, "eyebrow"),
+  const caseDetails = el("div", "", "case-details");
+  const caseTag = el("div", "", "case-tag");
+  caseTag.append(
+    el("span", r.inspection.id.toUpperCase(), "case-number"),
+    el("span", sourceName, "case-source"),
+  );
+  caseDetails.append(
+    caseTag,
     el("h1", r.inspection.title),
     el(
       "p",
@@ -292,7 +301,7 @@ function render() {
       : `Inspection still in ${r.inspection.phase}. Unreached phases are not completed.`,
     "phase-banner",
   );
-  title.append(status);
+  caseDetails.append(status);
   const actions = el("div", "", "actions");
   actions.append(
     button("Open another report", () => fileInput.click()),
@@ -304,7 +313,7 @@ function render() {
       ),
     ),
   );
-  title.append(actions);
+  title.append(caseDetails, actions);
   main.append(title);
   if (plain) plainReport(r);
   else room(r);
@@ -316,17 +325,14 @@ function render() {
 function landing() {
   const hero = el("section", "", "hero");
   const copy = el("div", "", "hero-copy");
+  const headline = el("h1");
+  headline.append("Someone has to ", el("em", "read the code."));
   copy.append(
-    el("p", "A CODE INSPECTION, BROUGHT BACK TO LIFE", "eyebrow"),
-    el("h1", "Someone has to\nread the code."),
+    el("p", "FORMAL CODE INSPECTION", "eyebrow"),
+    headline,
     el(
       "p",
-      "Gather the roles. Read the change aloud. Leave an honest record.",
-      "lede",
-    ),
-    el(
-      "p",
-      "Fagan's Ghost revives formal code inspection for an age of AI-written code. Enter the room to replay a real inspection, one reading and one finding at a time.",
+      "Replay a real inspection of AI-written code. Read the paraphrase, follow a finding to its source, and see what the Author decided.",
       "intro",
     ),
   );
@@ -343,41 +349,49 @@ function landing() {
       "fineprint",
     ),
   );
-  hero.append(copy, roleTable());
+  const artwork = el("div", "", "hero-artwork");
+  artwork.setAttribute("aria-hidden", "true");
+  hero.append(copy, artwork);
   main.append(hero);
+  const demoNote = el("section", "", "demo-note");
+  demoNote.append(
+    el("h2", "About the bundled inspection"),
+    el(
+      "p",
+      "The demo replays a real inspection of Fagan's Ghost, recorded by Codex role agents after Kiro reached its usage limit.",
+    ),
+  );
+  main.append(demoNote);
   const strip = el("section", "", "story-strip");
-  for (const [n, title, body] of [
+  for (const [title, body] of [
     [
-      "01",
-      "Read, before judging",
-      "The Reader describes the change. Two inspectors question its logic and interfaces.",
+      "The Reader",
+      "Explains each change in plain language before the inspectors weigh in.",
     ],
     [
-      "02",
-      "Keep the record honest",
-      "The Scribe logs findings. A deterministic server enforces phases and measures elapsed time.",
+      "The Scribe",
+      "Records each finding beside the line of code that raised it.",
     ],
     [
-      "03",
-      "Let the Author decide",
-      "Only the human Author records rework or waivers. Follow-up checks the result.",
+      "The Author",
+      "Reviews the evidence, decides what to fix or waive, and records why.",
     ],
   ]) {
     const part = el("article");
-    part.append(el("span", n, "eyebrow"), el("h2", title), el("p", body));
+    part.append(el("h2", title), el("p", body));
     strip.append(part);
   }
   main.append(strip);
-  main.append(
-    el(
-      "p",
-      "The bundled inspection uses Codex role agents after Kiro reached its usage limit. Kiro configuration and earlier hook experiments remain part of the project. This viewer makes no model calls.",
-      "provenance",
-    ),
-  );
   if (plain)
     main.append(el("p", "Open an inspection to read its plain report."));
 }
+function jumpToEvent(index: number) {
+  pause();
+  cursor = index;
+  selectedUnit = null;
+  render();
+}
+
 function room(r: Report) {
   const state = atEvent(r, cursor);
   const unit = r.packet.units.find((u) => u.id === selectedUnit) ?? state.unit;
@@ -397,20 +411,29 @@ function room(r: Report) {
   next.disabled = cursor >= r.events.length - 1;
   const toggle = button(playing ? "Pause" : "Play ceremony", play, "primary");
   toggle.dataset["focus"] = "play";
-  controls.append(
-    back,
-    toggle,
-    next,
-    el(
-      "span",
-      `${cursor + 1} / ${r.events.length} · ${eventName(state.event?.tool ?? "")}`,
-      "event-count",
-    ),
-  );
-  main.append(controls);
-  const layout = el("div", "", "room-grid");
-  const aside = el("aside", "", "room-aside");
-  aside.append(roleTable(state.event?.role));
+  toggle.disabled = r.events.length < 2;
+  const eventCount = state.event
+    ? `${cursor + 1} / ${r.events.length} · ${eventName(state.event.tool)}`
+    : "No recorded events";
+  const phases = new Map<string, number>();
+  r.events.forEach((event, index) => {
+    if (!phases.has(event.phase)) phases.set(event.phase, index);
+  });
+  if (phases.size) {
+    const rail = el("nav", "", "phase-rail");
+    rail.setAttribute("aria-label", "Recorded phases");
+    for (const [phase, index] of phases) {
+      const stop = button(phase, () => jumpToEvent(index));
+      stop.dataset["focus"] = `phase-${index}`;
+      stop.setAttribute("aria-label", `Jump to ${phase}`);
+      if (phase === state.event?.phase) stop.setAttribute("aria-current", "step");
+      rail.append(stop);
+    }
+    controls.append(rail);
+  }
+  const transport = el("div", "", "transport");
+  const buttons = el("div", "", "transport-buttons");
+  buttons.append(back, toggle, next);
   const eventLabel = el("label", "Jump to a recorded event", "field-label");
   const select = el("select");
   select.dataset["focus"] = "events";
@@ -424,13 +447,19 @@ function room(r: Report) {
     select.append(opt);
   });
   select.value = String(cursor);
-  select.addEventListener("change", () => {
-    pause();
-    cursor = Number(select.value);
-    selectedUnit = null;
-    render();
-  });
-  aside.append(eventLabel);
+  select.disabled = !r.events.length;
+  select.addEventListener("change", () => jumpToEvent(Number(select.value)));
+  const position = el("span", eventCount, "event-count");
+  transport.append(buttons, position, eventLabel);
+  controls.append(transport);
+  main.append(controls);
+
+  const layout = el("div", "", "room-grid");
+  const aside = el("aside", "", "room-aside");
+  const roster = el("section", "", "roster");
+  roster.append(el("h2", "Around the table"), roleTable(state.event?.role));
+  aside.append(roster);
+  aside.append(el("h2", "Recent events"));
   aside.append(
     el(
       "p",
@@ -443,6 +472,7 @@ function room(r: Report) {
   const eventLog = el("ol", "", "event-log");
   r.events.slice(Math.max(0, cursor - 3), cursor + 1).forEach((e) => {
     const item = el("li");
+    if (e === state.event) item.setAttribute("aria-current", "step");
     item.append(
       el("span", String(e.seq).padStart(2, "0"), "event-index"),
       el("span", eventName(e.tool)),
@@ -452,7 +482,7 @@ function room(r: Report) {
   });
   aside.append(eventLog);
   const work = el("section", "", "reading-desk");
-  work.append(el("h2", "Reading and defects", "sr-only"));
+  work.append(el("h2", "Reading desk"));
   const unitLabel = el("label", "Reading unit", "field-label");
   const units = el("select");
   units.setAttribute("aria-label", "Reading unit");
@@ -470,6 +500,16 @@ function room(r: Report) {
   });
   unitLabel.append(units);
   work.append(unitLabel);
+  if (state.attempt)
+    work.append(
+      el(
+        "p",
+        state.attempt.passed
+          ? "Follow-up passed. See each defect for verified or waived status."
+          : `Follow-up failed. Blocking majors: ${state.attempt.blocking.join(", ")}.`,
+        `phase-banner ${state.attempt.passed ? "followup-passed" : "followup-failed"}`,
+      ),
+    );
   const reading = state.readings.find((x) => x.unitId === unit?.id);
   const passage = el("div", "", "reader-passage");
   passage.append(el("p", "THE READER", "eyebrow"));
@@ -528,16 +568,6 @@ function room(r: Report) {
         el("p", "No defects logged for this unit at this point.", "fineprint"),
       );
   }
-  if (state.attempt)
-    work.append(
-      el(
-        "p",
-        state.attempt.passed
-          ? "Follow-up passed. See each defect for verified or waived status."
-          : `Follow-up failed. Blocking majors: ${state.attempt.blocking.join(", ")}.`,
-        "phase-banner",
-      ),
-    );
   layout.append(aside, work);
   main.append(layout);
   live.textContent = `Event ${cursor + 1}: ${eventName(state.event?.tool ?? "")}. ${state.event?.role ?? "server"}.`;
@@ -676,7 +706,7 @@ document.addEventListener("keydown", (e) => {
     render();
   }
   if (
-    e.key === " " &&
+    !plain && e.key === " " &&
     !(e.target instanceof HTMLButtonElement) &&
     !(e.target instanceof HTMLAnchorElement)
   ) {
@@ -688,7 +718,7 @@ document.addEventListener("keydown", (e) => {
     e.target.closest(".code-block, .greenbar")
   )
     return;
-  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+  if (!plain && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
     e.preventDefault();
     pause();
     step(e.key === "ArrowRight" ? 1 : -1);

@@ -5,20 +5,20 @@ specific change. Public entry and functional viewer form one static app: a
 brief invitation and real demo lead into the reading room; report view remains
 available throughout. No new product concept or service is introduced.
 
-Typography: Georgia for the project name and narrative headings (an archival
-serif with readable large letterforms), system sans-serif for controls and
-labels, Menlo with monospace fallbacks for code and measured fields. All are
-local system fonts, with no font network requests. Ink green, warm paper,
-muted brass, ruled dividers and pale green listing bands connect the ritual to
-the printed inspection record. No horror assets or stock imagery. The table,
-planchette and ghost outlines are original CSS shapes.
+Georgia carries the title, Reader's passage and report headings. System sans
+keeps controls compact, and Menlo separates source and event counts from prose.
+The entrance uses a locally bundled illustration of an empty inspection table
+against charcoal and brass. The reading desk moves to warm paper with a dark
+panel for the paraphrase and separate colors for additions, deletions and
+findings. The report keeps its pale green listing bands and print layout.
 
-A left column holds the table and event list; a wider right column holds the
-Reader and code. Controls remain above the work. On mobile these stack in
-reading order. A dense report view emphasizes text and print over animation.
-Concrete reference observations and browser evidence are recorded in
-`docs/verification.md` once inspected; these are design choices, not measured
-copies of reference styles.
+The title identifies the saved outcome. A separate phase rail marks the phase
+at the replay cursor and lets readers jump to the first recorded event in each
+phase. The event picker sits beside the transport controls above the desk.
+The sidebar holds the table and recent events, while the paraphrase, code and
+findings share the wider panel. On mobile the reading desk appears above the
+sidebar, with playback still above both. Follow-up appears near its event and
+above the code region, where it stays visible even for long units.
 
 The Vite/TypeScript app imports the existing browser-safe report schema/parser
 and green-bar formatter from fagan-mcp. It does not import the service, store,

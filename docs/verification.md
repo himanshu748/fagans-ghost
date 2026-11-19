@@ -63,11 +63,18 @@ also prompted fixes for file-picker landmarks, a listing's keyboard access and
 heading order. The glyph reveal keeps one accessible full sentence and is
 removed by either reduced-motion setting.
 
-The refreshed screenshots show D001’s original allegation and the Author’s
-waiver in the closed record. Its [false-positive investigation](inspections/insp-0001-D001-verification.md)
-is part of the evidence. The JSON was re-exported by the MCP server after the
-approved decision and actual follow-up, without rewriting the original finding. The generated green-bar listing contains the full actual record and
-uses a readable print layout.
+The screenshots now show the November 19 redesign. The entrance pairs the same
+Georgia headings with a locally bundled WebP illustration. The reading desk
+uses the earlier reference patterns of a clear title, compact metadata, ruled
+sections and a separate code gutter. During visual review at 1440×900 and
+390×844, phase shortcuts were moved into the playback area and made to wrap
+on mobile so the active stop stayed visible. The built viewer's browser test
+checks a keyboard phase jump, focus retention, and the appearance of follow-up
+at event 58. It also checks contrast at the tested sizes with axe.
+
+The room and report show D001’s original allegation and the Author’s waiver.
+The JSON contains the actual decision and follow-up, and the plain listing
+contains the full record. [False-positive investigation](inspections/insp-0001-D001-verification.md).
 
 ## Prepared CI and publication
 
