@@ -37,7 +37,8 @@ live.setAttribute("role", "status");
 live.setAttribute("aria-live", "polite");
 const header = el("header", "", "masthead");
 const brand = button("Fagan's Ghost", () => reset(), "brand");
-const brandSeal = el("span", "FG", "brand-seal");
+const brandSeal = el("span", "", "brand-seal");
+brandSeal.append(el("span", "FG", "brand-seal-text"));
 brandSeal.setAttribute("aria-hidden", "true");
 brand.prepend(brandSeal);
 const topActions = el("nav", "", "top-actions");
@@ -122,6 +123,7 @@ function reset() {
   evidenceOpen = false;
   error = "";
   loading = false;
+  planchetteAt = CENTER;
   render();
 }
 function step(delta: number) {
@@ -229,23 +231,146 @@ const seats = [
   ["author", "Author"],
 ] as const;
 
-function roleTable(active: string | null = null) {
-  const board = el("div", "", "ritual-board");
-  board.setAttribute("role", "group");
-  board.setAttribute("aria-label", "Inspection roles");
+type Pt = { x: number; y: number };
+const CENTER: Pt = { x: 50, y: 55 };
+const YES: Pt = { x: 18, y: 13 };
+const NO: Pt = { x: 82, y: 13 };
+const GOODBYE: Pt = { x: 50, y: 88 };
+function arc(chars: string, baseY: number, lift: number, x0: number, x1: number) {
+  const map = new Map<string, Pt>();
+  [...chars].forEach((ch, i, arr) => {
+    const t = arr.length === 1 ? 0.5 : i / (arr.length - 1);
+    map.set(ch, {
+      x: x0 + (x1 - x0) * t,
+      y: baseY - lift * Math.sin(Math.PI * t),
+    });
+  });
+  return map;
+}
+const LETTERS = new Map([
+  ...arc("ABCDEFGHIJKLM", 38, 16, 9, 91),
+  ...arc("NOPQRSTUVWXYZ", 60, 10, 14, 86),
+]);
+const DIGITS = new Map(
+  [..."1234567890"].map((ch, i): [string, Pt] => [ch, { x: 17 + i * 7.4, y: 73 }]),
+);
+const SEAT_POS: Pt[] = [
+  { x: 50, y: 1 },
+  { x: 95, y: 24 },
+  { x: 97, y: 72 },
+  { x: 50, y: 99 },
+  { x: 3, y: 72 },
+  { x: 5, y: 24 },
+];
+let planchetteAt: Pt = CENTER;
+
+function planchetteTarget(
+  state: ReturnType<typeof atEvent>,
+  reading: ReplayReading | undefined,
+): Pt {
+  const e = state.event;
+  if (!e) return CENTER;
+  const firstLetter = (text: string) =>
+    LETTERS.get(text.replace(/[^A-Za-z]/g, "").charAt(0).toUpperCase());
+  switch (e.tool) {
+    case "open_inspection":
+      return YES;
+    case "close_meeting":
+    case "export_report":
+      return GOODBYE;
+    case "follow_up":
+    case "cli:follow-up":
+      return state.attempt && state.attempt.passed === false ? NO : YES;
+    case "log_defect":
+      return firstLetter(String(e.data["defect_id"] ?? "")) ?? CENTER;
+    case "record_reading":
+      return firstLetter(reading?.paraphrase ?? "") ?? CENTER;
+    case "record_rework":
+      return LETTERS.get("A") ?? CENTER;
+    case "metrics":
+      return DIGITS.get("5") ?? CENTER;
+    default:
+      return CENTER;
+  }
+}
+
+function boardMark(text: string, p: Pt, cls: string) {
+  const mark = el("span", text, `board-letter ${cls}`);
+  mark.style.left = `${p.x}%`;
+  mark.style.top = `${p.y}%`;
+  return mark;
+}
+
+function planchette(target: Pt) {
+  const pl = el("div", "", "planchette");
+  pl.setAttribute("aria-hidden", "true");
+  pl.innerHTML =
+    '<svg viewBox="0 0 100 106"><path class="planchette-shell" d="M50 100C33 82 8 63 8 40 8 18 27 6 50 6 73 6 92 18 92 40 92 63 67 82 50 100Z"/><circle class="planchette-window" cx="50" cy="40" r="14"/></svg>';
+  pl.style.left = `${target.x}%`;
+  pl.style.top = `${target.y}%`;
+  return pl;
+}
+
+function ouijaBoard(active: string | null, target: Pt, ambient = false) {
+  const board = el("div", "", "ouija");
+  if (ambient) board.classList.add("ambient");
+  const face = el("div", "", "board-face");
+  const letters = el("div", "", "board-letters");
+  letters.setAttribute("aria-hidden", "true");
+  letters.append(
+    boardMark("YES", YES, "board-word"),
+    boardMark("NO", NO, "board-word"),
+    boardMark("GOOD BYE", GOODBYE, "board-word goodbye"),
+  );
+  for (const [ch, p] of LETTERS) letters.append(boardMark(ch, p, ""));
+  for (const [ch, p] of DIGITS) letters.append(boardMark(ch, p, "digit"));
+  face.append(letters, planchette(target));
+  board.append(face);
+  const ring = el("div", "", "seats");
+  ring.setAttribute("role", "group");
+  ring.setAttribute("aria-label", "Inspection roles");
   seats.forEach(([id, label], i) => {
+    const p = SEAT_POS[i]!;
     const seat = el(
       "div",
       "",
       `seat seat-${i}${id === active ? " active" : ""}`,
     );
+    seat.style.left = `${p.x}%`;
+    seat.style.top = `${p.y}%`;
     const marker = el("span", "", "seat-lamp");
     marker.setAttribute("aria-hidden", "true");
     seat.append(marker, el("span", label));
     if (id === active) seat.append(el("span", "Current role", "sr-only"));
-    board.append(seat);
+    ring.append(seat);
   });
+  board.append(ring);
   return board;
+}
+
+function glidePlanchette(next: Pt) {
+  const prev = planchetteAt;
+  planchetteAt = next;
+  const face = main.querySelector<HTMLElement>(".replay-scene .board-face");
+  const pl = face?.querySelector<HTMLElement>(".planchette");
+  if (
+    !pl ||
+    !face ||
+    reduced() ||
+    (prev.x === next.x && prev.y === next.y)
+  )
+    return;
+  const rect = face.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const dx = ((prev.x - next.x) / 100) * rect.width;
+  const dy = ((prev.y - next.y) / 100) * rect.height;
+  pl.animate(
+    [
+      { translate: `${dx}px ${dy}px` },
+      { translate: "0px 0px" },
+    ],
+    { duration: 1000, easing: "cubic-bezier(.16,.7,.24,1)" },
+  );
 }
 function render() {
   const focused =
@@ -333,7 +458,6 @@ function landing() {
   const headline = el("h1");
   headline.append("Someone has to ", el("em", "read the code."));
   copy.append(
-    el("p", "FORMAL CODE INSPECTION", "eyebrow"),
     headline,
     el(
       "p",
@@ -354,8 +478,9 @@ function landing() {
       "fineprint",
     ),
   );
-  const artwork = el("div", "", "hero-artwork");
+  const artwork = el("div", "", "hero-board");
   artwork.setAttribute("aria-hidden", "true");
+  artwork.append(ouijaBoard(null, CENTER, true));
   hero.append(copy, artwork);
   main.append(hero);
   const demoNote = el("section", "", "demo-note");
@@ -541,7 +666,9 @@ function replayScene(
     }
   }
   const visual = el("div", "", "scene-visual");
-  visual.append(roleTable(current?.role));
+  visual.append(
+    ouijaBoard(current?.role ?? null, planchetteTarget(state, reading)),
+  );
   scene.append(copy, visual, controls, caption);
   return scene;
 }
@@ -789,6 +916,7 @@ function room(r: Report, actions: HTMLDivElement) {
   layout.append(findings, work, history);
   evidence.append(evidenceHeader, layout);
   main.append(evidence);
+  glidePlanchette(planchetteTarget(state, sceneReading));
   live.textContent = `Event ${cursor + 1}: ${eventName(state.event?.tool ?? "")}. ${state.event?.role ?? "server"}.`;
 }
 function defectCard(r: Report, d: Defect, index = r.events.length - 1) {
