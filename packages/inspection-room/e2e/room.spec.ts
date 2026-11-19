@@ -54,7 +54,7 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await guide.getByRole("button", { name: "Read the change" }).click();
   await page.getByLabel("Reduce motion").check();
   await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(page.getByRole("button", { name: "Play replay" })).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Play replay" })).toBeInViewport({ ratio: 1 });
   await page.screenshot({ path: `test-results/stage-${info.project.name}.png` });
   await stage.getByRole("button", { name: "Read the full paraphrase" }).click();
   await expect(page.locator(".reading-desk .paraphrase")).toContainText("takes a separate value");

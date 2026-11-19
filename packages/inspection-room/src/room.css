@@ -729,6 +729,8 @@
 .room-view summary:hover { color: #fff0d8; }
 
 @media (max-width: 670px) {
+  .room-view .masthead { padding-block: 4px; }
+  .room-view .inspection-heading { padding-block: 12px 10px; }
   .room-view .story-guide button {
     padding: 4px 5px;
     font-size: 12px;
@@ -736,7 +738,7 @@
   .story-guide {
     grid-auto-columns: minmax(0, 1fr);
     gap: 2px;
-    padding: 7px 7px;
+    padding: 5px 7px;
   }
   .replay-scene {
     grid-template: "title" "visual" "caption" "playback" / minmax(0, 1fr);
@@ -745,5 +747,7 @@
   .ritual-board { max-width: 280px; }
   .scene-caption { border-top: 0; padding: 0 16px 11px; }
   .replay-scene .paraphrase { font-size: 16px; }
+  .room-view button.scene-action { margin-top: 5px; }
+  .playback { padding-top: 6px; }
   .all-events { margin-left: 0; }
 }
