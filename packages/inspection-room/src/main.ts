@@ -213,34 +213,29 @@ function download(name: string, data: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+const seats = [
+  ["moderator", "Moderator"],
+  ["reader", "Reader"],
+  ["inspector-logic", "Logic inspector"],
+  ["inspector-interfaces", "Interface inspector"],
+  ["scribe", "Scribe"],
+  ["author", "Author"],
+] as const;
+
 function roleTable(active: string | null = null) {
   const board = el("div", "", "ritual-board");
+  board.setAttribute("role", "group");
   board.setAttribute("aria-label", "Inspection roles");
-  const ring = el("div", "", "table-ring");
-  ring.append(el("span", "FG", "monogram"));
-  const planchette = el("span", "◦", "planchette");
-  planchette.setAttribute("aria-hidden", "true");
-  ring.append(planchette);
-  board.append(ring);
-  const roles = [
-    ["moderator", "Moderator"],
-    ["reader", "Reader"],
-    ["inspector-logic", "Logic inspector"],
-    ["inspector-interfaces", "Interface inspector"],
-    ["scribe", "Scribe"],
-    ["author", "Author · human"],
-  ];
-  roles.forEach(([id, label], i) => {
+  seats.forEach(([id, label], i) => {
     const seat = el(
       "div",
       "",
       `seat seat-${i}${id === active ? " active" : ""}`,
     );
-    seat.append(
-      el("span", String(i + 1).padStart(2, "0"), "seat-number"),
-      el("span", label),
-    );
-    if (id === active) seat.append(el("span", "Speaking", "sr-only"));
+    const marker = el("span", "", "seat-lamp");
+    marker.setAttribute("aria-hidden", "true");
+    seat.append(marker, el("span", label));
+    if (id === active) seat.append(el("span", "Current role", "sr-only"));
     board.append(seat);
   });
   return board;
@@ -315,10 +310,11 @@ function render() {
       ),
     ),
   );
-  title.append(caseDetails, actions);
+  title.append(caseDetails);
+  if (plain) title.append(actions);
   main.append(title);
   if (plain) plainReport(r);
-  else room(r);
+  else room(r, actions);
   if (focused)
     main
       .querySelector<HTMLElement>(`[data-focus="${focused}"]`)
@@ -409,9 +405,99 @@ function revealFinding(defect: Defect) {
   }
 }
 
-function room(r: Report) {
+type ReplayFrame = ReturnType<typeof atEvent>;
+type ReplayReading = ReplayFrame["readings"][number];
+
+function readingPassage(reading: ReplayReading | undefined, animate = false) {
+  const passage = el("div", "", "reader-passage");
+  const label = el("p", "Reader’s paraphrase", "reader-label");
+  if (reading) label.append(el("span", reading.id, "reading-id"));
+  passage.append(label);
+
+  const para = el("p", "", "paraphrase");
+  const words = reading?.paraphrase
+    ?? "The Reader has not spoken about this unit at this point in the ceremony.";
+  if (reading && animate && !reduced()) {
+    // One accessible sentence even while the visual glyphs reveal it.
+    para.append(el("span", words, "sr-only"));
+    const visual = el("span", "", "spelled-reading");
+    visual.setAttribute("aria-hidden", "true");
+    [...words].forEach((letter, index) => {
+      const glyph = el("span", letter, "glyph");
+      glyph.style.animationDelay = `${index * Math.min(12, 1000 / words.length)}ms`;
+      visual.append(glyph);
+    });
+    para.append(visual);
+  } else para.textContent = words;
+  passage.append(para);
+  if (reading?.judgmentFlags.length)
+    passage.append(el("p", `Language flags: ${reading.judgmentFlags.join(", ")}`, "flag"));
+  return passage;
+}
+
+function sceneNote(r: Report, state: ReplayFrame): string {
+  const event = state.event;
+  if (!event) return "This report has no recorded events to replay.";
+  switch (event.tool) {
+    case "open_inspection":
+      return `The Moderator opened ${fmt(r.packet.changedLoc)} changed lines across ${r.packet.units.length} reading units.`;
+    case "get_packet":
+      return "The participant consulted the inspection packet.";
+    case "log_defect": {
+      const finding = state.defects.find((d) => d.id === event.data["defect_id"]);
+      return finding
+        ? `The Scribe logged ${finding.id}, a ${finding.severity} finding at line ${finding.location.lineStart}.`
+        : "The Scribe logged a finding.";
+    }
+    case "record_rework":
+      return "The Author’s recorded disposition is attached to the finding in the evidence below.";
+    case "follow_up":
+    case "cli:follow-up":
+      if (!state.attempt) return "This event has no recorded check result.";
+      return state.attempt.passed
+        ? "The recorded follow-up passed. The evidence shows which findings were waived or verified."
+        : "The recorded follow-up did not pass. The evidence shows which major findings remain open.";
+    default:
+      return "";
+  }
+}
+
+function replayScene(
+  r: Report,
+  state: ReplayFrame,
+  reading: ReplayReading | undefined,
+  controls: HTMLElement,
+) {
+  const scene = el("section", "", "replay-scene");
+  scene.setAttribute("aria-label", "Inspection stage");
+  const current = state.event;
+  const copy = el("div", "", "scene-copy");
+  const who = seats.find(([id]) => id === current?.role)?.[1] ?? current?.role ?? "Server";
+  const active = el("p", "", "scene-role");
+  const light = el("span", "", "scene-lamp");
+  light.setAttribute("aria-hidden", "true");
+  active.append(light, el("strong", current ? who : "Replay"));
+  if (current) active.append(el("span", current.phase, "scene-phase"));
+  copy.append(active, el("h2", current ? eventName(current.tool) : "No recorded events"));
+  const caption = el("div", "", "scene-caption");
+  if (reading) caption.append(readingPassage(reading, true));
+  else {
+    const note = sceneNote(r, state);
+    if (note) caption.append(el("p", note, "scene-note"));
+  }
+  const visual = el("div", "", "scene-visual");
+  visual.append(roleTable(current?.role));
+  scene.append(copy, visual, controls, caption);
+  return scene;
+}
+
+function room(r: Report, actions: HTMLDivElement) {
   const state = atEvent(r, cursor);
   const unit = r.packet.units.find((u) => u.id === selectedUnit) ?? state.unit;
+  const sceneReading = state.event?.tool === "record_reading"
+    ? state.readings.find((reading) => reading.id === state.event?.data["reading_id"])
+    : undefined;
+  const player = el("div", "", "replay-player");
   const controls = el("section", "", "playback");
   controls.setAttribute("aria-label", "Playback controls");
   const back = button("← Previous", () => {
@@ -432,6 +518,27 @@ function room(r: Report) {
   const eventCount = state.event
     ? `${cursor + 1} / ${r.events.length} · ${eventName(state.event.tool)}`
     : "No recorded events";
+  const progress = el("input", "", "replay-progress");
+  progress.type = "range";
+  progress.min = "0";
+  progress.max = String(Math.max(0, r.events.length - 1));
+  progress.value = String(cursor);
+  progress.disabled = r.events.length < 2;
+  progress.dataset["focus"] = "replay-position";
+  progress.setAttribute("aria-label", "Replay position");
+  const updateProgress = () => {
+    const index = progress.valueAsNumber;
+    const event = r.events[index];
+    progress.style.setProperty("--played", `${(index / Math.max(1, r.events.length - 1)) * 100}%`);
+    if (event) progress.setAttribute("aria-valuetext", `Event ${index + 1} of ${r.events.length}, ${eventName(event.tool)}`);
+  };
+  updateProgress();
+  progress.addEventListener("input", () => {
+    pause();
+    updateProgress();
+  });
+  progress.addEventListener("change", () => jumpToEvent(progress.valueAsNumber));
+  controls.append(progress);
   const phases = new Map<string, number>();
   r.events.forEach((event, index) => {
     if (!phases.has(event.phase)) phases.set(event.phase, index);
@@ -469,9 +576,12 @@ function room(r: Report) {
   const position = el("span", eventCount, "event-count");
   transport.append(buttons, position, eventLabel);
   controls.append(transport);
-  main.append(controls);
+  player.append(replayScene(r, state, sceneReading, controls));
+  main.append(player);
 
   const layout = el("div", "", "room-grid");
+  const evidenceHeader = el("div", "", "evidence-heading");
+  evidenceHeader.append(el("h2", "Inspection evidence"), actions);
   const history = el("aside", "", "room-history");
   history.setAttribute("aria-label", "Event timeline");
   history.append(el("h2", "Event timeline"));
@@ -520,10 +630,6 @@ function room(r: Report) {
     }
     findings.append(list);
   }
-  const roster = el("aside", "", "roster");
-  roster.setAttribute("aria-label", "Around the table");
-  roster.append(el("h2", "Around the table"), roleTable(state.event?.role));
-
   const work = el("section", "", "reading-desk");
   const deskHeader = el("div", "", "desk-header");
   deskHeader.append(el("h2", "Reading desk"));
@@ -556,32 +662,8 @@ function room(r: Report) {
       ),
     );
   const reading = state.readings.find((x) => x.unitId === unit?.id);
-  const passage = el("div", "", "reader-passage");
-  const readerLabel = el("p", "Reader’s paraphrase", "reader-label");
-  if (reading) readerLabel.append(el("span", reading.id, "reading-id"));
-  passage.append(readerLabel);
-  const para = el("p", "", "paraphrase");
-  const words =
-    reading?.paraphrase ??
-    "The Reader has not spoken about this unit at this point in the ceremony.";
-  if (reading && state.event?.tool === "record_reading" && !reduced()) {
-    // One accessible sentence; the visual glyphs spell it out without live-region chatter.
-    para.append(el("span", words, "sr-only"));
-    const visual = el("span", "", "spelled-reading");
-    visual.setAttribute("aria-hidden", "true");
-    [...words].forEach((letter, index) => {
-      const glyph = el("span", letter, "glyph");
-      glyph.style.animationDelay = `${index * Math.min(12, 1000 / words.length)}ms`;
-      visual.append(glyph);
-    });
-    para.append(visual);
-  } else para.textContent = words;
-  passage.append(para);
-  if (reading?.judgmentFlags.length)
-    passage.append(
-      el("p", `Language flags: ${reading.judgmentFlags.join(", ")}`, "flag"),
-    );
-  work.append(passage);
+  if (!sceneReading || sceneReading.id !== reading?.id)
+    work.append(readingPassage(reading));
   if (unit) {
     const code = el("div", "", "code-block");
     code.tabIndex = 0;
@@ -628,8 +710,8 @@ function room(r: Report) {
         el("p", "No defects logged for this unit at this point.", "fineprint"),
       );
   }
-  layout.append(findings, work, history, roster);
-  main.append(layout);
+  layout.append(findings, work, history);
+  main.append(evidenceHeader, layout);
   live.textContent = `Event ${cursor + 1}: ${eventName(state.event?.tool ?? "")}. ${state.event?.role ?? "server"}.`;
 }
 function defectCard(r: Report, d: Defect, index = r.events.length - 1) {

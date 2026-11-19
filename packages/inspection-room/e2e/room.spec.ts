@@ -31,6 +31,14 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   );
   const findingLink = page.getByRole("button", { name: /D001 · major/ });
   await expect(findingLink).toHaveCount(0);
+  const scrubber = page.getByRole("slider", { name: "Replay position" });
+  await scrubber.focus();
+  await page.keyboard.press("End");
+  await expect(page.locator(".event-count")).toHaveText("59 / 59 · Metrics measured");
+  await expect(scrubber).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(page.locator(".event-count")).toHaveText("1 / 59 · Inspection opened");
+  await expect(findingLink).toHaveCount(0);
   const phases = page.getByRole("navigation", { name: "Recorded phases" });
   expect(await phases.evaluate((rail) => rail.scrollWidth <= rail.clientWidth)).toBe(true);
   const rework = phases.getByRole("button", { name: "Jump to Rework" });
@@ -51,14 +59,10 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await page.getByRole("button", { name: /57 Author records rework/ }).click();
   await expect(page.locator(".event-count")).toHaveText("57 / 59 · Author records rework");
   await expect(page.locator(".reading-desk .phase-banner")).toHaveCount(0);
-  const readingOption = page
-    .getByLabel("Jump to event")
-    .locator("option")
-    .filter({ hasText: "The Reader speaks" })
-    .first();
-  await page
-    .getByLabel("Jump to event")
-    .selectOption((await readingOption.getAttribute("value")) ?? "0");
+  await page.getByLabel("Jump to event").selectOption("30");
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await expect(stage.getByRole("heading", { name: "The Reader speaks" })).toBeVisible();
+  await expect(stage.locator(".seat.active")).toContainText("Reader");
   await expect(page.locator(".paraphrase")).not.toContainText("has not spoken");
   await page.getByLabel("Reduce motion").check();
   expect(
@@ -66,6 +70,9 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
       .locator(".paraphrase")
       .evaluate((e) => getComputedStyle(e).animationName),
   ).toBe("none");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.getByRole("button", { name: "Play ceremony" })).toBeInViewport();
+  await page.screenshot({ path: `test-results/stage-${info.project.name}.png` });
   await page.locator("body").click({ position: { x: 2, y: 2 } });
   const beforeStep = await page.locator('.event-count').textContent();
   await page.keyboard.press('ArrowRight');

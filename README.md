@@ -6,9 +6,9 @@ A local, deterministic MCP server enforces the phases and keeps the record. The 
 
 **Try it locally:** [Open the Inspection Room](#open-the-inspection-room). **Hosted viewer:** `https://YOUR_GITHUB_USERNAME.github.io/fagans-ghost/` (placeholder; not deployed).
 
-![The Inspection Room showing the actual U023 reading and recorded D001 finding](docs/screenshots/room-desktop.png)
+![The stage at event 31, with the Reader's actual U023 paraphrase and highlighted seat](docs/screenshots/stage-desktop.png)
 
-The screenshot shows the closed record, including the Author’s false-positive waiver for D001.
+The stage plays the inspection one event at a time. The closed record also shows the Author’s false-positive waiver for D001. [Evidence view](docs/screenshots/room-desktop.png).
 
 ## Open the Inspection Room
 
@@ -22,7 +22,7 @@ npm run dev --workspace inspection-room
 
 Open the local URL Vite prints, then choose **Enter the demo inspection**. Or choose **Open a report** and select `.fagan/inspections/insp-0001/report.json`. Uploaded files stay in the browser. No backend, account or model API is involved.
 
-Jump to a phase, choose a timeline event, or step with the arrow keys. Select a reading unit to see its code, or choose a finding to jump to its recorded line. Switch to **Report view** for the plain listing. Reduced motion follows the operating system and can also be enabled in the viewer. The shortcuts dialog lists keyboard controls.
+Scrub to an event, jump to a phase, or step with the arrow keys. Below the player, select a reading unit to see its code or choose a finding to jump to its recorded line. Switch to **Report view** for the plain listing. Reduced motion follows the operating system and can also be enabled in the viewer. The shortcuts dialog lists keyboard controls.
 
 The bundled record is an actual inspection of this repository: 501 changed lines, 40 Reader paraphrases and one major finding, D001, concerning Git's attached `-C/path` option. The [verification note](docs/inspections/insp-0001-D001-verification.md) shows that Git rejects this syntax, so the human Author explicitly waived D001 as a false positive. It was conducted by **Codex role agents**, using the real MCP server after Kiro reached its usage limit. Its current phase is **Closed**: follow-up reran the build and tests successfully, with D001 retained as **waived**, not fixed or exorcised. See [the exported record](.fagan/inspections/insp-0001/report.json) and [Kiro usage](KIRO_USAGE.md) for provenance.
 
@@ -126,4 +126,4 @@ For **Kiroween 2026, Resurrection**, the creative idea is to give a demanding ol
 
 Fagan's Ghost is [MIT licensed](LICENSE). No pre-existing application template or code from another hackathon entry was incorporated. The repository began with its project plan; the implementation was developed with Kiro and later continued with Codex after an explicit runtime switch. The real demonstration record identifies that switch.
 
-Standard open-source development resources include the MCP TypeScript SDK, Zod, picomatch, TypeScript, Vite, Vitest, fast-check, esbuild, Playwright and axe-core. Pinned dependency versions are in `package-lock.json`, and bundled notices are in [power/THIRD_PARTY_NOTICES.txt](power/THIRD_PARTY_NOTICES.txt). The interface uses original CSS, system fonts and a locally bundled illustration created with OpenAI image generation. Synthetic fixtures exist only in tests and isolated protocol experiments. The viewer's demo is copied from the real inspection export.
+Standard open-source development resources include the MCP TypeScript SDK, Zod, picomatch, TypeScript, Vite, Vitest, fast-check, esbuild, Playwright and axe-core. Pinned dependency versions are in `package-lock.json`, and bundled notices are in [power/THIRD_PARTY_NOTICES.txt](power/THIRD_PARTY_NOTICES.txt). The interface uses original CSS, system fonts and two locally bundled illustrations created with OpenAI image generation. Synthetic fixtures exist only in tests and isolated protocol experiments. The viewer's demo is copied from the real inspection export.

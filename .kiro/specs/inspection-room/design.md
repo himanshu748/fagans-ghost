@@ -5,21 +5,19 @@ specific change. Public entry and functional viewer form one static app: a
 brief invitation and real demo lead into the reading room; report view remains
 available throughout. No new product concept or service is introduced.
 
-Georgia carries the entrance, the Reader's paraphrase and the report headings.
-System sans handles the room title and controls, while Menlo separates source and
-event counts from prose. The entrance and replay share charcoal and brass. In
-the replay the diff uses muted red and green bands, with brass reserved for the
-current step and the line with a finding. The report uses warm paper and keeps
-its pale green listing bands and print layout.
+Georgia carries the entrance, scene title, Reader's paraphrase and report
+headings. System sans handles controls, while Menlo separates source and event
+counts from prose. The replay pairs a charcoal and brass palette with an overhead
+illustration of the table. Each event highlights its recorded role, and the
+Reader's actual passage appears when that reading plays. The report uses warm
+paper and keeps its pale green listing bands and print layout.
 
-The title identifies the saved outcome. A separate phase rail marks the phase
-at the replay cursor and lets readers jump to the first recorded event in each
-phase. The event picker sits beside the transport controls above the desk.
-The desktop layout gives the reading desk the widest column, with a quieter
-timeline on the left and the findings and role table on the right. A timeline
-row replays its event. A finding shortcut selects its unit and focuses the
-inline finding without moving the event cursor. On mobile, finding shortcuts
-sit between playback and the reading desk so the source is still one tap away.
+The stage and its transport form one player. A slider seeks by event sequence,
+and the phase rail jumps to the first event of a phase. On mobile, the
+transport sits directly below the table and above long captions. The evidence
+stays below the player, with a timeline that can replay prior events and
+finding shortcuts that focus the inline finding without changing the event.
+The diff uses muted red and green bands and marks the finding's exact line.
 Follow-up appears above the code region, where it stays visible for long units.
 
 The Vite/TypeScript app imports the existing browser-safe report schema/parser
