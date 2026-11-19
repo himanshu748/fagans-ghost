@@ -41,7 +41,7 @@ If you've reached Kiro's usage limit, record the local Inspection Room and use t
 | 2:04–2:32 | Show **Report view**, the waiver reason, **Reduce motion**, and the JSON download | “The replay and plain report come from the same export.” |
 | 2:32–2:50 | Tour `.kiro/specs`, `.kiro/agents`, `.kiro/hooks` and `.kiro/steering` | “Kiro ran the earlier hook and delegation tests. Codex ran the inspection shown here after Kiro reached its quota.” |
 
-The replay supplies the inspection opening, meeting and follow-up. A fresh Kiro suggestion and a verified source fix would require a separate live run with those events. The public video still needs to be recorded, reviewed and uploaded by the Author.
+The 1:50 local cut follows this sequence with shorter holds. It uses footage of the working Inspection Room, captions, and evidence cards for the earlier Kiro CLI test and Git verification. A fresh Kiro suggestion and a verified source fix would require a separate live run with those events. The Author reviews the local cut before uploading.
 
 ## Capture and edit
 
