@@ -618,3 +618,132 @@
 @media print {
   .replay-player { display: none !important; }
 }
+
+/* A short path through the inspection, above the complete replay. */
+.room-view .inspection-heading { padding-block: 17px 14px; }
+.room-view .inspection-heading h1 {
+  font-size: clamp(17px, 1.7vw, 24px);
+  font-weight: 570;
+  letter-spacing: -.025em;
+  margin-bottom: 5px;
+}
+.room-view .case-tag { margin-bottom: 5px; }
+.room-view .inspection-heading .meta { margin-bottom: 4px; }
+.room-view .inspection-heading .phase-banner { color: #c6bba9; }
+
+.replay-player { background: #171411; }
+.story-guide {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, max-content);
+  align-content: center;
+  gap: 6px;
+  padding: 9px clamp(10px, 2.5vw, 30px);
+  border-bottom: 1px solid var(--room-rule);
+  background: #211b16;
+}
+.room-view .story-guide button {
+  padding: 5px 14px;
+  background: transparent;
+  border-color: transparent;
+  color: #e4d6c3;
+  font-size: 13px;
+  line-height: 1.25;
+}
+.room-view .story-guide button[aria-current="step"],
+.room-view .story-guide.starting button:first-child {
+  color: #241a10;
+  background: #f0c78f;
+  border-color: #f0c78f;
+}
+.room-view .story-guide button:hover {
+  background: #3e2e20;
+  border-color: #8a684a;
+  color: #fff0d5;
+}
+
+.replay-scene {
+  background: radial-gradient(ellipse at 65% 43%, #372313 0, #211710 45%, #171411 90%);
+}
+.replay-scene h2 {
+  font-size: clamp(42px, 5.6vw, 74px);
+  letter-spacing: -.05em;
+}
+.scene-caption { padding-bottom: clamp(20px, 2.5vw, 40px); }
+.replay-scene .paraphrase { font-size: clamp(17px, 1.45vw, 21px); }
+.ritual-board::before { filter: brightness(1.17) saturate(.92); }
+.decision-lead {
+  font-weight: 650;
+  color: #f3cc9b;
+  margin-bottom: 6px;
+}
+.room-view button.scene-action {
+  margin-top: 11px;
+  color: #f3cc9b;
+  background: transparent;
+  border-color: transparent;
+  padding-inline: 2px;
+  min-height: 34px;
+  text-align: left;
+}
+.room-view button.scene-action:hover {
+  background: transparent;
+  border-color: transparent;
+  color: #fff1d9;
+  text-decoration: underline;
+}
+
+.all-events { margin-left: auto; }
+.all-events[open] {
+  flex-basis: 100%;
+  border-top: 1px solid var(--room-rule);
+  padding-top: 4px;
+}
+.all-events summary,
+.evidence-panel summary {
+  color: #e4d6c3;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.all-events summary {
+  padding: 12px 6px;
+  font-size: 13px;
+}
+.all-events .field-label {
+  width: min(100%, 440px);
+  margin: 3px 0 4px;
+}
+.evidence-panel {
+  margin-top: 13px;
+  border-top: 1px solid var(--room-rule);
+  margin-bottom: 24px;
+}
+.evidence-panel summary {
+  padding: 14px 4px;
+  width: fit-content;
+  font-size: 14px;
+  font-weight: 600;
+}
+.evidence-heading { margin-top: 4px; }
+.evidence-panel .room-grid { margin-bottom: 26px; }
+.room-view summary:hover { color: #fff0d8; }
+
+@media (max-width: 670px) {
+  .room-view .story-guide button {
+    padding: 4px 5px;
+    font-size: 12px;
+  }
+  .story-guide {
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 2px;
+    padding: 7px 7px;
+  }
+  .replay-scene {
+    grid-template: "title" "visual" "caption" "playback" / minmax(0, 1fr);
+  }
+  .replay-scene h2 { font-size: clamp(29px, 8.8vw, 50px); }
+  .ritual-board { max-width: 280px; }
+  .scene-caption { border-top: 0; padding: 0 16px 11px; }
+  .replay-scene .paraphrase { font-size: 16px; }
+  .all-events { margin-left: 0; }
+}

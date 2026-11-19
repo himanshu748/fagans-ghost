@@ -10,3 +10,4 @@
 - [x] Redesign the entrance and reading desk, and add phase jumps to playback. (IR-R2,4,8,11)
 - [x] Place replay, reading desk and finding shortcuts in distinct, responsive regions. Verify that a keyboard jump to a finding preserves the recorded event. (IR-R7,8,12)
 - [x] Put the recorded role and speaker on a stage with a seekable event track, and keep controls ahead of long captions on mobile. (IR-R4,7,8,13)
+- [x] Guide first-time viewers through a connected reading, finding and decision, with full replay and evidence one action away. (IR-R14)

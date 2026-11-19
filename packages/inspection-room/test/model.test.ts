@@ -5,6 +5,7 @@ import {
   defectStatus,
   loadReport,
   MAX_BYTES,
+  replayHighlights,
   reportUrl,
 } from "../src/model.js";
 const text = readFileSync(
@@ -65,6 +66,19 @@ describe("Inspection Room report boundary", () => {
       ),
     ).toBe("Open");
     expect(atEvent(report, 0).attempt).toBeUndefined();
+  });
+  it("IR-R14 follows the same finding through its recorded reading and decision", () => {
+    const highlights = replayHighlights(report);
+    expect(report.events[highlights.reading]?.data["reading_id"]).toBe("R023");
+    expect(report.events[highlights.finding]?.data["defect_id"]).toBe("D001");
+    expect(report.events[highlights.decision]?.tool).toBe("follow_up");
+
+    const partial = structuredClone(report);
+    partial.events = partial.events.slice(0, highlights.finding + 1);
+    partial.rework.items = [];
+    partial.followup.attempts = [];
+    expect(replayHighlights(partial).decision).toBe(-1);
+    expect(replayHighlights(partial).finding).toBe(highlights.finding);
   });
   it("IR-R5 replays the actual Author waiver and passing follow-up", () => {
     const defect = report.defects.defects[0]!;

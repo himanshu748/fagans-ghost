@@ -29,6 +29,18 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await expect(page.locator(".phase-banner")).toContainText(
     "Inspection closed",
   );
+  const guide = page.getByRole("navigation", { name: "Inspection highlights" });
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await expect(stage.getByRole("heading", { name: "A code change under review" })).toBeVisible();
+  await guide.getByRole("button", { name: "Read the change" }).click();
+  await expect(stage.locator(".seat.active")).toContainText("Reader");
+  await expect(stage.locator(".reading-id")).toHaveText("R023");
+  await guide.getByRole("button", { name: "Review the finding" }).click();
+  await expect(stage.getByRole("heading", { name: "A possible problem" })).toBeVisible();
+  await expect(stage.getByText("The Author waived D001.")).toHaveCount(0);
+  await guide.getByRole("button", { name: "See the decision" }).click();
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+  await expect(stage.getByRole("heading", { name: "Follow-up passed" })).toBeVisible();
   const findingLink = page.getByRole("button", { name: /D001 · major/ });
   await expect(findingLink).toHaveCount(0);
   const scrubber = page.getByRole("slider", { name: "Replay position" });
@@ -39,6 +51,14 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await page.keyboard.press("Home");
   await expect(page.locator(".event-count")).toHaveText("1 / 59 · Inspection opened");
   await expect(findingLink).toHaveCount(0);
+  await guide.getByRole("button", { name: "Read the change" }).click();
+  await page.getByLabel("Reduce motion").check();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.getByRole("button", { name: "Play replay" })).toBeInViewport();
+  await page.screenshot({ path: `test-results/stage-${info.project.name}.png` });
+  await stage.getByRole("button", { name: "Read the full paraphrase" }).click();
+  await expect(page.locator(".reading-desk .paraphrase")).toContainText("takes a separate value");
+  await page.getByText("Browse all events", { exact: true }).click();
   const phases = page.getByRole("navigation", { name: "Recorded phases" });
   expect(await phases.evaluate((rail) => rail.scrollWidth <= rail.clientWidth)).toBe(true);
   const rework = phases.getByRole("button", { name: "Jump to Rework" });
@@ -60,19 +80,15 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await expect(page.locator(".event-count")).toHaveText("57 / 59 · Author records rework");
   await expect(page.locator(".reading-desk .phase-banner")).toHaveCount(0);
   await page.getByLabel("Jump to event").selectOption("30");
-  const stage = page.getByRole("region", { name: "Inspection stage" });
-  await expect(stage.getByRole("heading", { name: "The Reader speaks" })).toBeVisible();
+  await expect(stage.getByRole("heading", { name: "Read the change" })).toBeVisible();
   await expect(stage.locator(".seat.active")).toContainText("Reader");
-  await expect(page.locator(".paraphrase")).not.toContainText("has not spoken");
+  await expect(stage.locator(".paraphrase")).not.toContainText("has not spoken");
   await page.getByLabel("Reduce motion").check();
   expect(
     await page
-      .locator(".paraphrase")
+      .locator(".replay-scene .paraphrase")
       .evaluate((e) => getComputedStyle(e).animationName),
   ).toBe("none");
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(page.getByRole("button", { name: "Play ceremony" })).toBeInViewport();
-  await page.screenshot({ path: `test-results/stage-${info.project.name}.png` });
   await page.locator("body").click({ position: { x: 2, y: 2 } });
   const beforeStep = await page.locator('.event-count').textContent();
   await page.keyboard.press('ArrowRight');
@@ -129,7 +145,7 @@ test("actual exported inspection: entry, replay, report, keyboard, mobile and co
   await expect(page.getByRole("dialog")).not.toBeVisible();
   const finalEventValue = await eventPicker.locator("option").last().getAttribute("value");
   await eventPicker.selectOption(finalEventValue ?? "0");
-  await page.getByRole('button', { name: 'Play ceremony' }).click();
+  await page.getByRole('button', { name: 'Play replay' }).click();
   await expect(page.locator('.event-count')).toContainText(/^1 \/ /);
   await expect(page.locator('.event-count')).not.toContainText(/^1 \/ /, { timeout: 5000 });
   await page.getByRole('button', { name: 'Pause', exact: true }).click();

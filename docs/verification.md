@@ -75,11 +75,13 @@ GitHub's Files changed screenshot.
 
 The browser checks exercise the redesigned room at 1440×900 and 390×844. They
 verify that the scrubber reaches the first and last events without losing focus,
-that event 31 displays the Reader and their recorded paraphrase, and that Play
-can be seen at both sizes. They also verify that a keyboard jump focuses D001's
-inline card while preserving event 58, and that returning to event 57 hides the
-later follow-up banner. The axe scan covers the landing, room and report at
-both sizes. [Desktop stage](screenshots/stage-desktop.png) and
+that the guide links the excerpt from R023 to D001 and its later waiver, and
+that Play can be seen at both sizes. The full paraphrase is available below the
+player. A keyboard jump focuses D001's inline card while preserving event 58,
+and returning to event 57 hides the later follow-up banner. A model test checks
+that a partial record without a decision has no decision shortcut. The axe
+scan covers the landing, room and report at both sizes.
+[Desktop stage](screenshots/stage-desktop.png) and
 [mobile stage](screenshots/stage-mobile.png).
 
 The room and report show D001’s original allegation and the Author’s waiver.

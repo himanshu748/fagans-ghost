@@ -27,7 +27,7 @@
 
 ## Recording cut using the existing Codex inspection
 
-If you've reached Kiro's usage limit, record the local Inspection Room and use the saved evidence below. Choose **Enter the demo inspection**. The numbers are the positions in **Jump to event**. Keep the caption **Real repository inspection · Codex roles · local MCP** visible during the replay. [Start the local viewer](README.md#open-the-inspection-room).
+If you've reached Kiro's usage limit, record the local Inspection Room and use the saved evidence below. Choose **Enter the demo inspection**, then expand **Browse all events**. The numbers are the positions in **Jump to event**. Keep the caption **Real repository inspection · Codex roles · local MCP** visible during the replay. [Start the local viewer](README.md#open-the-inspection-room).
 
 | Time | Capture | Caption or talking point |
 | --- | --- | --- |

@@ -9,6 +9,7 @@ import {
   fmt,
   loadReport,
   MAX_BYTES,
+  replayHighlights,
   renderReportTxt,
   type Report,
   type Defect,
@@ -96,6 +97,8 @@ let report: Report | null = null;
 let cursor = 0;
 let plain = false;
 let playing = false;
+let eventsOpen = false;
+let evidenceOpen = false;
 let timer: ReturnType<typeof setInterval> | undefined;
 let generation = 0;
 let controller: AbortController | undefined;
@@ -115,6 +118,8 @@ function reset() {
   report = null;
   cursor = 0;
   selectedUnit = null;
+  eventsOpen = false;
+  evidenceOpen = false;
   error = "";
   loading = false;
   render();
@@ -158,6 +163,8 @@ async function load(
     report = next;
     cursor = 0;
     selectedUnit = null;
+    eventsOpen = false;
+    evidenceOpen = false;
     sourceName = name;
     live.textContent = `Loaded ${next.inspection.title}. ${next.packet.units.length} reading units.`;
   } catch (e) {
@@ -294,7 +301,7 @@ function render() {
   const status = el(
     "p",
     r.inspection.phase === "Closed"
-      ? "Inspection closed. See the recorded follow-up for verification and waivers."
+      ? "Inspection closed."
       : `Inspection still in ${r.inspection.phase}. Unreached phases are not completed.`,
     "phase-banner",
   );
@@ -330,7 +337,7 @@ function landing() {
     headline,
     el(
       "p",
-      "Replay a real inspection of AI-written code. Read the paraphrase, follow a finding to its source, and see what the Author decided.",
+      "See how a team reads an AI-written change, checks a possible bug, and decides what to do with it.",
       "intro",
     ),
   );
@@ -392,6 +399,7 @@ function jumpToEvent(index: number) {
 
 function revealFinding(defect: Defect) {
   pause();
+  evidenceOpen = true;
   selectedUnit = defect.unitId;
   render();
   const card = [...main.querySelectorAll<HTMLElement>("[data-finding]")].find(
@@ -408,16 +416,41 @@ function revealFinding(defect: Defect) {
 type ReplayFrame = ReturnType<typeof atEvent>;
 type ReplayReading = ReplayFrame["readings"][number];
 
-function readingPassage(reading: ReplayReading | undefined, animate = false) {
+function detailsPanel(label: string, open: boolean, remember: (value: boolean) => void, cls: string) {
+  const pane = el("details", "", cls);
+  pane.open = open;
+  const summary = el("summary", label);
+  summary.dataset["focus"] = cls;
+  pane.append(summary);
+  pane.addEventListener("toggle", () => {
+    if (pane.isConnected) remember(pane.open);
+  });
+  return pane;
+}
+
+function showEvidence(unitId: string | undefined) {
+  pause();
+  evidenceOpen = true;
+  if (unitId) selectedUnit = unitId;
+  render();
+  const pane = main.querySelector<HTMLDetailsElement>(".evidence-panel");
+  if (!pane) return;
+  const summary = pane.querySelector("summary");
+  summary?.focus({ preventScroll: true });
+  summary?.scrollIntoView({ block: "start" });
+}
+
+function readingPassage(reading: ReplayReading | undefined, excerpt = false) {
   const passage = el("div", "", "reader-passage");
-  const label = el("p", "Reader’s paraphrase", "reader-label");
+  const full = reading?.paraphrase ?? "The Reader has not spoken about this unit at this point in the ceremony.";
+  const abbreviate = excerpt && full.length > 186;
+  const words = abbreviate ? `${full.slice(0, 186).replace(/\s+\S*$/, "")}…` : full;
+  const label = el("p", abbreviate ? "From the Reader’s paraphrase" : "Reader’s paraphrase", "reader-label");
   if (reading) label.append(el("span", reading.id, "reading-id"));
   passage.append(label);
 
   const para = el("p", "", "paraphrase");
-  const words = reading?.paraphrase
-    ?? "The Reader has not spoken about this unit at this point in the ceremony.";
-  if (reading && animate && !reduced()) {
+  if (reading && excerpt && !reduced()) {
     // One accessible sentence even while the visual glyphs reveal it.
     para.append(el("span", words, "sr-only"));
     const visual = el("span", "", "spelled-reading");
@@ -432,6 +465,7 @@ function readingPassage(reading: ReplayReading | undefined, animate = false) {
   passage.append(para);
   if (reading?.judgmentFlags.length)
     passage.append(el("p", `Language flags: ${reading.judgmentFlags.join(", ")}`, "flag"));
+  if (abbreviate) passage.append(button("Read the full paraphrase ↓", () => showEvidence(reading?.unitId), "scene-action"));
   return passage;
 }
 
@@ -440,13 +474,13 @@ function sceneNote(r: Report, state: ReplayFrame): string {
   if (!event) return "This report has no recorded events to replay.";
   switch (event.tool) {
     case "open_inspection":
-      return `The Moderator opened ${fmt(r.packet.changedLoc)} changed lines across ${r.packet.units.length} reading units.`;
+      return `The Moderator opened a review of ${fmt(r.packet.changedLoc)} changed lines. Follow how the team read the change and what the Author did with the findings.`;
     case "get_packet":
       return "The participant consulted the inspection packet.";
     case "log_defect": {
       const finding = state.defects.find((d) => d.id === event.data["defect_id"]);
       return finding
-        ? `The Scribe logged ${finding.id}, a ${finding.severity} finding at line ${finding.location.lineStart}.`
+        ? `An inspector flagged a possible problem. The Scribe logged it as ${finding.id} at line ${finding.location.lineStart} for the Author to check.`
         : "The Scribe logged a finding.";
     }
     case "record_rework":
@@ -467,6 +501,7 @@ function replayScene(
   state: ReplayFrame,
   reading: ReplayReading | undefined,
   controls: HTMLElement,
+  focusDefect: Defect | undefined,
 ) {
   const scene = el("section", "", "replay-scene");
   scene.setAttribute("aria-label", "Inspection stage");
@@ -478,12 +513,32 @@ function replayScene(
   light.setAttribute("aria-hidden", "true");
   active.append(light, el("strong", current ? who : "Replay"));
   if (current) active.append(el("span", current.phase, "scene-phase"));
-  copy.append(active, el("h2", current ? eventName(current.tool) : "No recorded events"));
+  const headings: Record<string, string> = {
+    open_inspection: "A code change under review",
+    record_reading: "Read the change",
+    log_defect: "A possible problem",
+    record_rework: "The Author responds",
+  };
+  const result = current?.tool === "follow_up" || current?.tool === "cli:follow-up";
+  const heading = result && state.attempt
+    ? state.attempt.passed ? "Follow-up passed" : "Follow-up needs work"
+    : current ? headings[current.tool] ?? eventName(current.tool) : "No recorded events";
+  copy.append(active, el("h2", heading));
   const caption = el("div", "", "scene-caption");
   if (reading) caption.append(readingPassage(reading, true));
   else {
     const note = sceneNote(r, state);
-    if (note) caption.append(el("p", note, "scene-note"));
+    const decision = focusDefect && (result || current?.tool === "record_rework")
+      ? reworkAt(r, cursor).find((item) => item.defectId === focusDefect.id) : undefined;
+    if (decision?.resolution === "waived" && decision.reason) {
+      caption.append(
+        el("p", `The Author waived ${decision.defectId}.`, "scene-note decision-lead"),
+        el("p", decision.reason, "scene-note"),
+      );
+    } else if (note) caption.append(el("p", note, "scene-note"));
+    if (focusDefect && (current?.tool === "log_defect" || decision)) {
+      caption.append(button("See the finding in the code ↓", () => revealFinding(focusDefect), "scene-action"));
+    }
   }
   const visual = el("div", "", "scene-visual");
   visual.append(roleTable(current?.role));
@@ -493,11 +548,27 @@ function replayScene(
 
 function room(r: Report, actions: HTMLDivElement) {
   const state = atEvent(r, cursor);
+  const highlights = replayHighlights(r);
   const unit = r.packet.units.find((u) => u.id === selectedUnit) ?? state.unit;
   const sceneReading = state.event?.tool === "record_reading"
     ? state.readings.find((reading) => reading.id === state.event?.data["reading_id"])
     : undefined;
   const player = el("div", "", "replay-player");
+  const guide = el("nav", "", "story-guide");
+  if (cursor === 0) guide.classList.add("starting");
+  guide.setAttribute("aria-label", "Inspection highlights");
+  for (const [index, label] of [
+    [highlights.reading, "Read the change"],
+    [highlights.finding, "Review the finding"],
+    [highlights.decision, "See the decision"],
+  ] as const) {
+    if (index < 0) continue;
+    const link = button(label, () => jumpToEvent(index));
+    link.dataset["focus"] = `highlight-${index}`;
+    if (cursor === index) link.setAttribute("aria-current", "step");
+    guide.append(link);
+  }
+  if (guide.childElementCount) player.append(guide);
   const controls = el("section", "", "playback");
   controls.setAttribute("aria-label", "Playback controls");
   const back = button("← Previous", () => {
@@ -512,7 +583,7 @@ function room(r: Report, actions: HTMLDivElement) {
   });
   next.dataset["focus"] = "next";
   next.disabled = cursor >= r.events.length - 1;
-  const toggle = button(playing ? "Pause" : "Play ceremony", play, "primary");
+  const toggle = button(playing ? "Pause" : "Play replay", play, "primary");
   toggle.dataset["focus"] = "play";
   toggle.disabled = r.events.length < 2;
   const eventCount = state.event
@@ -539,6 +610,7 @@ function room(r: Report, actions: HTMLDivElement) {
   });
   progress.addEventListener("change", () => jumpToEvent(progress.valueAsNumber));
   controls.append(progress);
+  const allEvents = detailsPanel("Browse all events", eventsOpen, (open) => { eventsOpen = open; }, "all-events");
   const phases = new Map<string, number>();
   r.events.forEach((event, index) => {
     if (!phases.has(event.phase)) phases.set(event.phase, index);
@@ -553,7 +625,7 @@ function room(r: Report, actions: HTMLDivElement) {
       if (phase === state.event?.phase) stop.setAttribute("aria-current", "step");
       rail.append(stop);
     }
-    controls.append(rail);
+    allEvents.append(rail);
   }
   const transport = el("div", "", "transport");
   const buttons = el("div", "", "transport-buttons");
@@ -574,14 +646,19 @@ function room(r: Report, actions: HTMLDivElement) {
   select.disabled = !r.events.length;
   select.addEventListener("change", () => jumpToEvent(Number(select.value)));
   const position = el("span", eventCount, "event-count");
-  transport.append(buttons, position, eventLabel);
+  transport.append(buttons, position, allEvents);
+  allEvents.append(eventLabel);
   controls.append(transport);
-  player.append(replayScene(r, state, sceneReading, controls));
+  const focusDefect = state.event?.tool === "log_defect"
+    ? state.defects.find((defect) => defect.id === state.event?.data["defect_id"])
+    : state.defects.find((defect) => defect.id === highlights.defect?.id);
+  player.append(replayScene(r, state, sceneReading, controls, focusDefect));
   main.append(player);
 
   const layout = el("div", "", "room-grid");
+  const evidence = detailsPanel("Source code and evidence", evidenceOpen, (open) => { evidenceOpen = open; }, "evidence-panel");
   const evidenceHeader = el("div", "", "evidence-heading");
-  evidenceHeader.append(el("h2", "Inspection evidence"), actions);
+  evidenceHeader.append(actions);
   const history = el("aside", "", "room-history");
   history.setAttribute("aria-label", "Event timeline");
   history.append(el("h2", "Event timeline"));
@@ -662,8 +739,7 @@ function room(r: Report, actions: HTMLDivElement) {
       ),
     );
   const reading = state.readings.find((x) => x.unitId === unit?.id);
-  if (!sceneReading || sceneReading.id !== reading?.id)
-    work.append(readingPassage(reading));
+  work.append(readingPassage(reading));
   if (unit) {
     const code = el("div", "", "code-block");
     code.tabIndex = 0;
@@ -711,7 +787,8 @@ function room(r: Report, actions: HTMLDivElement) {
       );
   }
   layout.append(findings, work, history);
-  main.append(evidenceHeader, layout);
+  evidence.append(evidenceHeader, layout);
+  main.append(evidence);
   live.textContent = `Event ${cursor + 1}: ${eventName(state.event?.tool ?? "")}. ${state.event?.role ?? "server"}.`;
 }
 function defectCard(r: Report, d: Defect, index = r.events.length - 1) {

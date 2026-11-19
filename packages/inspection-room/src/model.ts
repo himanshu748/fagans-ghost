@@ -198,6 +198,36 @@ export function defectStatus(
     return "Fixed, awaiting verification";
   return "Open";
 }
+export function replayHighlights(report: Report) {
+  const { events } = report;
+  const defects = new Map(report.defects.defects.map((defect) => [defect.id, defect]));
+  const readings = new Map(report.readings.readings.map((reading) => [reading.id, reading]));
+  const getDefect = (event: Report["events"][number]) => {
+    const id = event.data["defect_id"];
+    return typeof id === "string" ? defects.get(id) : undefined;
+  };
+  const finding = events.findIndex((event) => event.tool === "log_defect" && getDefect(event));
+  const defect = finding >= 0 ? getDefect(events[finding]!) : undefined;
+  const getReading = (event: Report["events"][number]) => {
+    const id = event.data["reading_id"];
+    return typeof id === "string" ? readings.get(id) : undefined;
+  };
+  const related = defect ? events.findIndex((event, index) => index < finding
+    && event.tool === "record_reading" && getReading(event)?.unitId === defect.unitId) : -1;
+  const firstReading = events.findIndex((event, index) => (finding < 0 || index < finding)
+    && event.tool === "record_reading" && getReading(event));
+
+  const author = defect ? events.findLastIndex((event, index) => index > finding
+    && event.tool === "record_rework" && Array.isArray(event.data["items"])
+    && event.data["items"].some((item) => item && typeof item === "object"
+      && !Array.isArray(item) && item["defect_id"] === defect.id)) : -1;
+  const attempts = new Set(report.followup.attempts.map((attempt) => attempt.n));
+  const followup = events.findLastIndex((event, index) => index > Math.max(finding, author)
+    && (event.tool === "follow_up" || event.tool === "cli:follow-up")
+    && typeof event.data["attempt"] === "number" && attempts.has(event.data["attempt"]));
+  return { reading: related >= 0 ? related : firstReading, finding, decision: followup >= 0 ? followup : author, defect };
+}
+
 export function eventName(tool: string): string {
   const names: Record<string, string> = {
     open_inspection: "Inspection opened",
