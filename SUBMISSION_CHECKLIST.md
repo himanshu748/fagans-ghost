@@ -8,10 +8,10 @@ The [official rules](https://kiroween.devpost.com/rules), checked November 17, 2
 
 | Item | Current state / Author action |
 | --- | --- |
-| Public GitHub repository | Not created or pushed. Final URL: `https://github.com/YOUR_GITHUB_USERNAME/fagans-ghost` |
+| Public GitHub repository | https://github.com/himanshu748/fagans-ghost |
 | License | Root [LICENSE](LICENSE) is MIT. Verify GitHub detects it and shows it in About after publication |
 | Root `.kiro/` | Specs, hooks, steering, agents and MCP settings exist. Run `npm run check:repo`, confirm they are committed and inspect them on GitHub |
-| Functional app | Local viewer implemented. Hosted URL pending: `https://YOUR_GITHUB_USERNAME.github.io/fagans-ghost/` |
+| Functional app | https://himanshu748.github.io/fagans-ghost/ |
 | Description | [DEVPOST_STORY.md](DEVPOST_STORY.md); update remaining-state paragraph after final verification |
 | YouTube video | A 1:50 captioned cut shows the earlier viewer layout, the saved Codex inspection and Kiro CLI evidence. Author review and upload are pending. Public URL: `YOUR_PUBLIC_YOUTUBE_URL`. [Shotlist](VIDEO_SHOTLIST.md) |
 | Kiro write-up | [KIRO_USAGE.md](KIRO_USAGE.md); includes actual Kiro experiments, Codex provenance and missing IDE checks |
@@ -84,7 +84,7 @@ git remote -v
 Continue only with the intended committed content and no existing `origin` to a different repository. Replace the username once:
 
 ```sh
-FG_GITHUB_OWNER='YOUR_GITHUB_USERNAME'
+FG_GITHUB_OWNER='himanshu748'
 FG_GITHUB_REPO='fagans-ghost'
 gh auth login --hostname github.com --git-protocol https
 gh auth status

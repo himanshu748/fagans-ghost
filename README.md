@@ -4,7 +4,7 @@
 
 A local, deterministic MCP server enforces the phases and keeps the record. The Inspection Room turns that record into a quiet séance around a table, with findings pinned to their code and a printable green-bar report alongside it.
 
-**Try it locally:** [Open the Inspection Room](#open-the-inspection-room). **Hosted viewer:** `https://YOUR_GITHUB_USERNAME.github.io/fagans-ghost/` (placeholder; not deployed).
+**Try it locally:** [Open the Inspection Room](#open-the-inspection-room). **Hosted viewer:** https://himanshu748.github.io/fagans-ghost/
 
 ![The stage at event 31, with an excerpt from the Reader's actual U023 paraphrase and a highlighted seat](docs/screenshots/stage-desktop.png)
 
