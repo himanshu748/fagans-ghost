@@ -305,7 +305,17 @@ function planchette(target: Pt) {
   const pl = el("div", "", "planchette");
   pl.setAttribute("aria-hidden", "true");
   pl.innerHTML =
-    '<svg viewBox="0 0 100 106"><path class="planchette-shell" d="M50 100C33 82 8 63 8 40 8 18 27 6 50 6 73 6 92 18 92 40 92 63 67 82 50 100Z"/><circle class="planchette-window" cx="50" cy="40" r="14"/></svg>';
+    '<svg viewBox="0 0 100 108">' +
+    '<defs><linearGradient id="planchette-wood" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#7d5427"/><stop offset=".55" stop-color="#553517"/>' +
+    '<stop offset="1" stop-color="#2e1a0a"/></linearGradient></defs>' +
+    '<path class="planchette-shell" fill="url(#planchette-wood)" fill-rule="evenodd" ' +
+    'd="M50 104C31 86 5 66 5 41 5 17 26 3 50 3 74 3 95 17 95 41 95 66 69 86 50 104Z' +
+    'M50 59a19 19 0 1 0 0-38 19 19 0 0 0 0 38Z"/>' +
+    '<circle class="planchette-ring" cx="50" cy="40" r="19"/>' +
+    '<g class="planchette-feet"><circle cx="50" cy="89" r="2.6"/>' +
+    '<circle cx="25" cy="56" r="2.6"/><circle cx="75" cy="56" r="2.6"/></g>' +
+    '</svg>';
   pl.style.left = `${target.x}%`;
   pl.style.top = `${target.y}%`;
   return pl;
@@ -743,6 +753,20 @@ function replayScene(
     if (focusDefect && (current?.tool === "log_defect" || decision)) {
       caption.append(button("See the finding in the code ↓", () => revealFinding(focusDefect), "scene-action"));
     }
+  }
+  if (r.events.length > 1) {
+    const ledger = el("ol", "", "scene-ledger");
+    for (const i of [cursor - 1, cursor, cursor + 1]) {
+      const e = r.events[i];
+      if (!e) continue;
+      const item = el("li", "", i === cursor ? "current" : "");
+      const jump = button(`${i + 1}. ${eventName(e.tool)}`, () => jumpToEvent(i));
+      if (i === cursor) jump.setAttribute("aria-current", "step");
+      const who = seats.find(([id]) => id === e.role)?.[1] ?? e.role ?? "Server";
+      item.append(jump, el("span", who, "ledger-who"));
+      ledger.append(item);
+    }
+    caption.append(ledger);
   }
   const visual = el("div", "", "scene-visual");
   visual.append(
