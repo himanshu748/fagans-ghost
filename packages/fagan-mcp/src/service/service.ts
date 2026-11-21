@@ -28,7 +28,7 @@ import {
 } from "../core/ops.js";
 import { countChangedLoc, buildPacket, reworkDriftLoc } from "../core/packet.js";
 import { assertPhase, isTerminal } from "../core/phase.js";
-import { buildReport, renderReportTxt, serializeReport } from "../core/report.js";
+import { buildReport, renderReportHtml, renderReportTxt, serializeReport } from "../core/report.js";
 import { assertRole } from "../core/roles.js";
 import { MetricsSchema, type CheckResult, type DefectType, type EventTool, type Metrics, type Phase, type Role, type Severity } from "../core/schema.js";
 import { checkEntry, checkSize, createInspectionState, type OpOutcome } from "../core/state.js";
@@ -395,7 +395,7 @@ export async function metricsService(ctx: ServiceContext, input: { inspection_id
 
 // ---------------------------------------------------------------- export_report
 
-export type ReportFormat = "json" | "txt";
+export type ReportFormat = "json" | "txt" | "html";
 
 export interface ExportResult {
   files: Array<{ path: string; sha256: string; bytes: number }>;
@@ -411,8 +411,8 @@ export async function exportReportService(
   const root = await resolveRoot(ctx.cwd);
   const config = await loadConfig(root);
   const checklists = await loadChecklists();
-  const formats = (["json", "txt"] as const).filter((f) => input.formats.includes(f));
-  if (formats.length === 0) throw validationError("formats", "must list json, txt or both");
+  const formats = (["json", "txt", "html"] as const).filter((f) => input.formats.includes(f));
+  if (formats.length === 0) throw validationError("formats", "must list json, txt, html or a mix");
   const role: Role | "human" = input.caller.kind === "tool" ? (input.caller.role as Role) : "human";
   const tool: EventTool = input.caller.kind === "tool" ? "export_report" : "cli:export";
   const id = input.inspection_id;
@@ -426,6 +426,7 @@ export async function exportReportService(
     const contents: Record<ReportFormat, { name: ExtraFileName; content: string }> = {
       json: { name: "report.json", content: serializeReport(report) },
       txt: { name: "report.txt", content: renderReportTxt(report) },
+      html: { name: "report.html", content: renderReportHtml(report) },
     };
     const extraFiles = formats.map((f) => contents[f]);
     const files = extraFiles.map((f) => ({

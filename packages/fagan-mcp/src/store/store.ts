@@ -43,7 +43,7 @@ type StateKey = keyof typeof STATE_FILES;
 const STATE_KEYS = Object.keys(STATE_FILES) as StateKey[];
 
 /** Files a transaction may write besides the state files. */
-export type ExtraFileName = "metrics.json" | "report.json" | "report.txt";
+export type ExtraFileName = "metrics.json" | "report.json" | "report.txt" | "report.html";
 export interface ExtraFile {
   name: ExtraFileName;
   content: string;

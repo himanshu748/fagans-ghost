@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FaganError } from "../src/core/errors.js";
 import { computeMetrics } from "../src/core/metrics.js";
 import { closeMeeting, getPacket, logDefect, recordReading } from "../src/core/ops.js";
-import { buildReport, parseReport, renderReportTxt, REPORT_WIDTH, serializeReport } from "../src/core/report.js";
+import { buildReport, parseReport, renderReportHtml, renderReportTxt, REPORT_WIDTH, serializeReport } from "../src/core/report.js";
 import { SAMPLE_DIFF, sampleState, testChecklists, testConfig } from "./helpers.js";
 
 function sampleReport() {
@@ -75,5 +75,37 @@ describe("FM-R11 report", () => {
     expect(txt).not.toContain("\t");
     expect(lines.slice(0, 6).map((l) => l[0])).toEqual([":", ":", ":", " ", " ", " "]);
     expect(renderReportTxt(sampleReport())).toBe(txt);
+  });
+});
+
+describe("report.html export", () => {
+  it("renders every section, escapes markup and is deterministic", () => {
+    const html = renderReportHtml(sampleReport());
+    for (const section of ["Packet", "UNIT U001", "UNIT U002", "READER R001", "Defect log", "Rework", "Follow-up", "Metrics"]) {
+      expect(html).toContain(section);
+    }
+    expect(html).toContain("D001");
+    expect(html).toContain("Judgment words flagged: should");
+    expect(html).toContain("n/a (phase_not_reached)");
+    // Untrusted strings are escaped, never emitted as markup.
+    expect(html).not.toContain("<script");
+    expect(renderReportHtml(sampleReport())).toBe(html);
+  });
+
+  it("escapes user-controlled strings", () => {
+    const diff = SAMPLE_DIFF.replace("+Body", "+<img src=x onerror=alert(1)>");
+    let s = sampleState("insp-0001", diff);
+    const metrics = computeMetrics({
+      timestamps: s.inspection.timestamps,
+      changedLoc: s.packet.changedLoc,
+      defects: s.defects.defects,
+      attempts: s.followup.attempts,
+      rateWarnings: testConfig.rateWarnings,
+      computedAt: "2026-11-15T10:21:00.000Z",
+    });
+    const r = buildReport({ state: s, metrics, events: [], checklists: testChecklists, generatorVersion: "0.0.0", exportedAt: "2026-11-15T10:21:00.000Z" });
+    const html = renderReportHtml(r);
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).not.toContain("<img");
   });
 });
