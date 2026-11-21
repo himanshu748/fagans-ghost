@@ -256,11 +256,11 @@ const DIGITS = new Map(
 );
 const SEAT_POS: Pt[] = [
   { x: 50, y: 1 },
-  { x: 95, y: 24 },
-  { x: 97, y: 72 },
+  { x: 88, y: 21 },
+  { x: 90, y: 73 },
   { x: 50, y: 99 },
-  { x: 3, y: 72 },
-  { x: 5, y: 24 },
+  { x: 10, y: 73 },
+  { x: 12, y: 21 },
 ];
 let planchetteAt: Pt = CENTER;
 
@@ -458,10 +458,11 @@ function landing() {
   const headline = el("h1");
   headline.append("Someone has to ", el("em", "read the code."));
   copy.append(
+    el("p", "Agents write the code now. Fagan's Ghost reads it.", "eyebrow"),
     headline,
     el(
       "p",
-      "See how a team reads an AI-written change, checks a possible bug, and decides what to do with it.",
+      "AI agents ship diffs faster than any team can review them. This revives the 1976 inspection ritual: fixed roles read every changed line, a deterministic log keeps the findings honest, and the human Author keeps the final word.",
       "intro",
     ),
   );
@@ -483,20 +484,85 @@ function landing() {
   artwork.append(ouijaBoard(null, CENTER, true));
   hero.append(copy, artwork);
   main.append(hero);
-  const demoNote = el("section", "", "demo-note");
-  demoNote.append(
-    el("h2", "About the bundled inspection"),
-    el(
-      "p",
-      "The demo replays a real inspection of Fagan's Ghost, recorded by Codex role agents after Kiro reached its usage limit.",
-    ),
+
+  const problem = el("section", "", "pitch problem");
+  const problemTitle = el("h2");
+  problemTitle.append(
+    el("span", "Code is being written. "),
+    el("em", "Nobody is reading it."),
   );
-  main.append(demoNote);
+  problem.append(el("p", "The problem", "pitch-kicker"), problemTitle);
+  const problemGrid = el("div", "", "pitch-grid");
+  for (const [title, body] of [
+    [
+      "Diffs outpace review",
+      "Agents produce hundreds of changed lines per task. A skimmed diff and a rubber-stamp approval are not a review.",
+    ],
+    [
+      "Findings evaporate",
+      "A comment in a chat or a half-remembered concern leaves no record. Nothing proves the defect was ever addressed.",
+    ],
+    [
+      "Fixes go unverified",
+      "Rework lands and the thread moves on. Without exit criteria, \"looks fine\" is the only gate a change has to pass.",
+    ],
+  ]) {
+    const part = el("article");
+    part.append(el("h3", title), el("p", body));
+    problemGrid.append(part);
+  }
+  problem.append(problemGrid);
+  main.append(problem);
+
+  const ritual = el("section", "", "pitch ritual");
+  const ritualTitle = el("h2");
+  ritualTitle.append(
+    el("span", "Fagan's Ghost brings formal code inspection "),
+    el("em", "back from the dead."),
+  );
+  ritual.append(el("p", "The answer, circa 1976", "pitch-kicker"), ritualTitle);
+  const ritualGrid = el("div", "", "pitch-grid");
+  for (const [title, body] of [
+    [
+      "Six seats at the board",
+      "A Moderator, a Reader, two inspectors, a Scribe and the Author each hold a fixed role, played by Kiro agents and the human.",
+    ],
+    [
+      "Every line is read aloud",
+      "The diff is split into reading units and the Reader paraphrases each in plain language before anyone judges it.",
+    ],
+    [
+      "The log is honest",
+      "A deterministic MCP server records each defect with its type, severity and the line that raised it. No memory, no vibes.",
+    ],
+    [
+      "Nothing closes on trust",
+      "Rework is recorded, the tests rerun, and follow-up fails while any major finding stays open without an Author waiver.",
+    ],
+  ]) {
+    const part = el("article");
+    part.append(el("h3", title), el("p", body));
+    ritualGrid.append(part);
+  }
+  ritual.append(ritualGrid);
+  const ritualCta = el("div", "", "actions");
+  ritualCta.append(button("Watch a real inspection replay →", demo, "primary"));
+  ritual.append(ritualCta);
+  main.append(ritual);
+
   const strip = el("section", "", "story-strip");
   for (const [title, body] of [
     [
+      "The Moderator",
+      "Opens the ceremony, checks entry criteria and keeps the phases in order.",
+    ],
+    [
       "The Reader",
       "Explains each change in plain language before the inspectors weigh in.",
+    ],
+    [
+      "The Inspectors",
+      "Hunt logic and interface defects against a checklist chosen by file type.",
     ],
     [
       "The Scribe",
@@ -506,12 +572,25 @@ function landing() {
       "The Author",
       "Reviews the evidence, decides what to fix or waive, and records why.",
     ],
+    [
+      "The Follow-up",
+      "Verifies the rework and blocks closure while open majors remain.",
+    ],
   ]) {
     const part = el("article");
     part.append(el("h2", title), el("p", body));
     strip.append(part);
   }
   main.append(strip);
+  const demoNote = el("section", "", "demo-note");
+  demoNote.append(
+    el("h2", "About the bundled inspection"),
+    el(
+      "p",
+      "The demo replays a real inspection of Fagan's Ghost, recorded by Codex role agents after Kiro reached its usage limit.",
+    ),
+  );
+  main.append(demoNote);
   if (plain)
     main.append(el("p", "Open an inspection to read its plain report."));
 }
