@@ -1,20 +1,38 @@
 {
   "name": "fagan-mcp",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Deterministic local stdio MCP server and fagan CLI that keep the record for a Fagan-style code inspection.",
   "license": "MIT",
   "type": "module",
   "bin": {
     "fagan": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "checklists"
+  ],
   "engines": {
     "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/himanshu748/fagans-ghost.git",
+    "directory": "packages/fagan-mcp"
+  },
+  "keywords": [
+    "mcp",
+    "code-inspection",
+    "fagan",
+    "kiro"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && vitest run"
+    "test": "npm run build && vitest run",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
