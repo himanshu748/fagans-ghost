@@ -627,7 +627,7 @@
   .room-view .inspection-heading { padding-block: 6px 6px; }
   .room-view .inspection-heading h1 { font-size: 24px; }
   .ouija { gap: 4px; }
-  .board-face { aspect-ratio: 10 / 5.6; }
+  .board-face { aspect-ratio: 10 / 5; }
   .replay-progress { margin-bottom: 8px; }
   .story-guide {
     flex-wrap: nowrap;
@@ -663,7 +663,7 @@
     overflow: hidden;
   }
   .room-view button.scene-action { margin-top: 6px; }
-  .playback { padding-top: 10px; }
+  .playback { padding-top: 6px; }
   .all-events { margin-left: 0; }
   .room-grid {
     grid-template-columns: minmax(0, 1fr);
