@@ -28,7 +28,7 @@ const USAGE = `Usage:
   fagan hook gate                          Hook: block git commit while an open major exists (exit 2 blocks)
   fagan follow-up --latest | <id>          Run follow-up for the latest inspection in Rework or FollowUp, or for <id>
   fagan abandon <id> --reason <text>       Move an inspection to Abandoned
-  fagan export <id> [--format json|txt]    Write report.json and/or report.txt
+  fagan export <id> [--format json|txt|html] Write report.json, report.txt and/or report.html
 `;
 
 /** Exit code for a blocked commit. Exit 2 blocks under both readings of the hooks docs (PLAN.md section 11.2). */
@@ -258,7 +258,7 @@ async function exportCmd(args: string[]): Promise<number> {
   });
   const id = positionals[0];
   const formats = values.format ?? ["json", "txt"];
-  if (id === undefined || positionals.length > 1 || formats.some((f) => f !== "json" && f !== "txt")) {
+  if (id === undefined || positionals.length > 1 || formats.some((f) => f !== "json" && f !== "txt" && f !== "html")) {
     err(USAGE);
     return 1;
   }

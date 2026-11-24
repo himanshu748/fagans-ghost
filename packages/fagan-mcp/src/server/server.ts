@@ -288,7 +288,7 @@ export function createServer(ctx: ServiceContext): McpServer {
       inputSchema: {
         inspection_id: inspectionId,
         role: role("moderator, author"),
-        formats: z.array(z.enum(["json", "txt"])).min(1).max(2).default(["json", "txt"]),
+        formats: z.array(z.enum(["json", "txt", "html"])).min(1).max(3).default(["json", "txt"]),
       },
     },
     (a) =>

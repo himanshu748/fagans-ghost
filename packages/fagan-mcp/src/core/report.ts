@@ -274,3 +274,171 @@ export function renderReportTxt(report: Report): string {
   const out = body.map((line, i) => `${Math.floor(i / 3) % 2 === 0 ? ":" : " "} ${line}`.trimEnd());
   return `${out.join("\n")}\n`;
 }
+
+// ---------------------------------------------------------------- report.html
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Renders a self-contained static HTML copy of the listing, for sharing a
+ * report with people who do not run the viewer. No scripts, no external
+ * assets; every report string is entity-escaped.
+ */
+export function renderReportHtml(report: Report): string {
+  const { inspection: insp, packet, readings, defects, rework, followup, metrics } = report;
+  const out: string[] = [];
+  const check = (name: string, c: { ran: boolean; passed: boolean; exitCode: number | null; durationMs: number | null }): string =>
+    `${name} ${c.ran ? (c.passed ? "PASS" : "FAIL") : "NOT RUN"}${c.exitCode === null ? "" : ` exit ${c.exitCode}`}${c.durationMs === null ? "" : ` ${c.durationMs} ms`}`;
+  const row = (cells: readonly string[], tag: "td" | "th" = "td"): string =>
+    `      <tr>${cells.map((c) => `<${tag}>${c}</${tag}>`).join("")}</tr>`;
+
+  out.push(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(insp.id)} · ${esc(insp.title)}</title>
+<style>
+  :root { color-scheme: light; }
+  body { max-width: 60em; margin: 2em auto; padding: 0 1em; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #1c1917; }
+  h1 { font-size: 1.4em; } h2 { font-size: 1.1em; margin-top: 2em; border-bottom: 1px solid #d6d3d1; padding-bottom: .2em; }
+  dl { display: grid; grid-template-columns: 12em 1fr; gap: .15em 1em; }
+  dt { font-weight: 700; } dd { margin: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #d6d3d1; padding: .3em .55em; text-align: left; vertical-align: top; }
+  th { background: #f5f5f4; }
+  .major { color: #b91c1c; font-weight: 700; } .minor { color: #a16207; }
+  .pass { color: #15803d; } .fail { color: #b91c1c; }
+  .loc { font-family: inherit; white-space: nowrap; }
+  .warn { background: #fef3c7; padding: .4em .6em; }
+  footer { margin-top: 3em; color: #78716c; font-size: .85em; }
+</style>
+</head>
+<body>`);
+  out.push(`<h1>${esc(insp.title)}</h1>`);
+  out.push("<dl>");
+  const t = insp.timestamps;
+  const closed = t.closedAt ?? (t.abandonedAt === null ? "-" : `abandoned ${t.abandonedAt}`);
+  for (const [k, v] of [
+    ["Inspection", insp.id],
+    ["Range", `${insp.range.base} (${insp.range.baseSha.slice(0, 12)}) .. ${insp.range.head}${insp.range.headSha === null ? "" : ` (${insp.range.headSha.slice(0, 12)})`}`],
+    ["Phase", insp.phase],
+    ["Opened", t.planningStart],
+    ["Closed", closed],
+    ["Exported", report.exportedAt],
+    ["Entry", `${check("BUILD", insp.entry.build)} | ${check("TESTS", insp.entry.tests)} | SIZE ${insp.entry.size.changedLoc}/${insp.entry.size.limit} LOC ${insp.entry.size.passed ? "PASS" : "FAIL"}`],
+  ] as const) {
+    out.push(`  <dt>${esc(k)}</dt><dd>${esc(v)}</dd>`);
+  }
+  if (insp.authorOverview !== null) out.push(`  <dt>Overview</dt><dd>${esc(insp.authorOverview)}</dd>`);
+  if (insp.meetingNotes !== null) out.push(`  <dt>Meeting notes</dt><dd>${esc(insp.meetingNotes)}</dd>`);
+  if (insp.abandonReason !== null) out.push(`  <dt>Abandoned</dt><dd>${esc(insp.abandonReason)}</dd>`);
+  out.push("</dl>");
+
+  out.push(`<h2>Packet · ${packet.files.length} files, ${packet.units.length} units, ${packet.changedLoc} changed LOC</h2>`);
+  out.push("<table>");
+  out.push(row(["Status", "Path", "Checklist", "Note"], "th"));
+  for (const f of packet.files) {
+    out.push(row([esc(f.status.toUpperCase()), esc(f.oldPath === null ? f.path : `${f.path} (from ${f.oldPath})`), esc(f.checklist), esc(f.skipped ?? "")]));
+  }
+  out.push("</table>");
+
+  out.push("<h2>Units</h2>");
+  for (const unit of packet.units) {
+    out.push(`<h3>${esc(`UNIT ${unit.id} · ${unit.file} · ${unit.hunkHeader} · ${unit.changedLoc} changed LOC`)}</h3>`);
+    out.push("<table>");
+    out.push(row(["Mark", "Old", "New", "", "Text"], "th"));
+    const unitDefects = defects.defects.filter((d) => d.unitId === unit.id);
+    for (const line of unit.lines) {
+      const hits = unitDefects.filter((d) => {
+        const n = d.location.side === "new" ? line.newNo : line.oldNo;
+        return n !== null && n >= d.location.lineStart && n <= d.location.lineEnd;
+      });
+      const mark = hits.length === 0 ? "" : hits.length === 1 ? (hits[0]?.id ?? "") : `${hits[0]?.id ?? ""}+`;
+      const kind = line.kind === "add" ? "+" : line.kind === "del" ? "-" : " ";
+      out.push(
+        row([
+          esc(mark),
+          esc(line.oldNo === null ? "" : String(line.oldNo)),
+          esc(line.newNo === null ? "" : String(line.newNo)),
+          esc(kind),
+          `<code>${esc(printable(line.text))}</code>`,
+        ]),
+      );
+      if (line.noNewlineAtEof) out.push(row(["", "", "", "", "<code>\\ No newline at end of file</code>"]));
+    }
+    out.push("</table>");
+    const reading = readings.readings.find((r) => r.unitId === unit.id);
+    if (reading === undefined) {
+      out.push("<p><em>READER: (no reading recorded)</em></p>");
+    } else {
+      out.push(`<p><strong>READER ${esc(reading.id)}:</strong> ${esc(reading.paraphrase)}</p>`);
+      if (reading.judgmentFlags.length > 0) out.push(`<p class="warn">Judgment words flagged: ${esc(reading.judgmentFlags.join(", "))}</p>`);
+    }
+  }
+
+  out.push(`<h2>Defect log · ${defects.defects.length} defects</h2>`);
+  out.push("<table>");
+  out.push(row(["ID", "Sev", "Type", "Class", "Raised by", "Unit", "Location", "Description"], "th"));
+  for (const d of defects.defects) {
+    const loc = `${d.location.file}:${d.location.side}:${d.location.lineStart}-${d.location.lineEnd}`;
+    const desc = d.checklistItemId === null ? d.description : `${d.description} (checklist item ${d.checklistItemId})`;
+    out.push(row([esc(d.id), `<span class="${d.severity === "major" ? "major" : "minor"}">${esc(d.severity)}</span>`, esc(d.type), esc(d.class ?? "-"), esc(d.raisedBy), esc(d.unitId), `<span class="loc">${esc(loc)}</span>`, esc(desc)]));
+  }
+  out.push("</table>");
+
+  out.push(`<h2>Rework · ${rework.items.length} items</h2>`);
+  if (rework.items.length > 0) {
+    out.push("<table>");
+    out.push(row(["Defect", "Resolution", "At", "Note"], "th"));
+    for (const item of rework.items) {
+      out.push(row([esc(item.defectId), esc(item.resolution.toUpperCase()), esc(item.recordedAt), esc(item.resolution === "fixed" ? (item.note ?? "") : (item.reason ?? ""))]));
+    }
+    out.push("</table>");
+  }
+
+  out.push(`<h2>Follow-up · ${followup.attempts.length} attempts</h2>`);
+  if (followup.attempts.length > 0) {
+    out.push("<table>");
+    out.push(row(["Attempt", "At", "Result", "Checks", "Defects", "Blocking"], "th"));
+    for (const a of followup.attempts) {
+      out.push(
+        row([
+          String(a.n),
+          esc(a.at),
+          `<span class="${a.passed ? "pass" : "fail"}">${a.passed ? "PASSED" : "FAILED"}</span>`,
+          esc(`${check("BUILD", a.checks.build)} | ${check("TESTS", a.checks.tests)}`),
+          esc(a.defects.map((d) => `${d.defectId} ${d.severity} ${d.status}`).join("; ") || "no defects"),
+          esc(a.blocking.join(", ")),
+        ]),
+      );
+    }
+    out.push("</table>");
+  }
+
+  out.push(`<h2>Metrics · computed ${esc(metrics.computedAt)}</h2>`);
+  const reasons = new Map(metrics.nullReasons.map((r) => [r.field, r.reason]));
+  out.push("<dl>");
+  out.push(`  <dt>Changed LOC</dt><dd>${metrics.changedLoc}</dd>`);
+  for (const k of ["planning", "overview", "preparation", "meeting", "rework", "followup"] as const) {
+    out.push(`  <dt>${k} ms</dt><dd>${esc(fmt(metrics.durationsMs[k], reasons.get(`durationsMs.${k}`)))}</dd>`);
+  }
+  for (const [k, v] of [
+    ["Prep LOC/h", fmt(metrics.preparationRateLocPerHour, reasons.get("preparationRateLocPerHour"))],
+    ["Insp LOC/h", fmt(metrics.inspectionRateLocPerHour, reasons.get("inspectionRateLocPerHour"))],
+    ["Defects/KLOC", fmt(metrics.defectsPerKloc, reasons.get("defectsPerKloc"))],
+    ["Majors/KLOC", fmt(metrics.majorsPerKloc, reasons.get("majorsPerKloc"))],
+    ["Defects", `${metrics.defects.total} total, ${metrics.defects.major} major, ${metrics.defects.minor} minor`],
+    ["By type", Object.entries(metrics.byType).map(([k2, v2]) => `${k2} ${v2}`).join(", ")],
+  ] as const) {
+    out.push(`  <dt>${esc(k)}</dt><dd>${esc(v)}</dd>`);
+  }
+  out.push("</dl>");
+  for (const w of metrics.warnings) out.push(`<p class="warn">${esc(w.code)}: ${esc(w.message)}</p>`);
+
+  out.push(`<footer>Generated by ${esc(report.generator.name)} ${esc(report.generator.version)} · ${esc(report.schemaVersion)}</footer>`);
+  out.push("</body>\n</html>");
+  return `${out.join("\n")}\n`;
+}

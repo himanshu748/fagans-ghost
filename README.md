@@ -101,6 +101,25 @@ A fixed finding is verified using passing configured checks and a change to its 
 
 The commit hook covers supported literal Git command forms inside Kiro. It is not a shell security boundary and does not intercept commands in an ordinary terminal. Keep source reports private when they contain private code; hosting a report publishes its contents. Neither the server nor viewer calls an LLM; Kiro's own model access remains subject to the user's account limits.
 
+### Commit gate scope
+
+The gate is a guard against an agent's ordinary `git commit`, not a sandbox. These commits are known to pass it:
+
+- Commands inside `sh -c '...'`, `bash -c`, `eval`, scripts, Makefiles, npm scripts and git aliases (the matcher sees only the outer command line).
+- `cd <dir> && git commit`: the gate checks the shell tool's directory (`tool_input.cwd`, else the payload `cwd`), not the directory after `cd`.
+- The shell tool's `cwd` parameter is used as written (relative to the payload `cwd`). Whether Kiro expands `~` or `$VAR` in that parameter was not tested; a value that is not inside a git repo falls back to the payload `cwd` repo, so a commit into another repo named that way passes when the payload `cwd` repo has no open major.
+- A `-C`/`--chdir` word the shell expands, such as `git -C "$OTHER" commit`, `git -C "$(cat dir.txt)" commit` or `git -C repo* commit`, is checked against the shell tool's directory repo (then the payload `cwd` repo), not the directory it expands to (review v2 issue 1). When that repo has no open major, a commit into another repo written this way passes.
+- `git --git-dir=<p>` or `--work-tree=<p>` pointing at another repo: the gate checks the repo found from the working directory.
+- `env -S '<string>'` (`--split-string`), whose command is inside one word.
+- Wrappers not in `WRAPPERS`, such as `chronic`, `ionice`, `flock` or `script -c`.
+- Commits made by other git subcommands: `git merge`, `cherry-pick`, `revert`, `am`, `rebase`, `pull`, `stash` and plumbing such as `commit-tree`. FM-R16.2 defines a commit as the `commit` subcommand only.
+- Payload problems fail open (FM-R16.5, review v1 issue 4): if a `PreToolUse` payload carries the command in neither `tool_input.command` nor `tool_input.cmd`, every commit passes with only a stderr warning. Experiment E2 in [docs/experiments.md](docs/experiments.md) recorded Kiro CLI V3 sending `tool_name` `execute_bash` with the command in `tool_input.command`, over ACP and headless, and the gate blocked a real `git commit --allow-empty` from the agent in a live ACP session. The IDE's payload was not recorded.
+- Clients that do not turn hooks on: over ACP, Kiro CLI 3.3.0 loads `.kiro/hooks/*.json` only when the client's `initialize` sends `clientCapabilities._meta.kiro.hooks` `{ enabled: true, v2: true }`. An ACP client that does not runs no hooks, so the gate never runs.
+- The tool call must match the hook's `shell` matcher. Shell tools that are not in the `shell` group are not gated.
+- Commits that never pass through a Kiro hook at all: a human or CI job running `git commit`, an agent in another IDE, or a direct git call all bypass the gate by design — it exists to stop the ritual's own agents, not to police the repository.
+
+[.kiro/specs/fagan-mcp/design.md](.kiro/specs/fagan-mcp/design.md) is the reference for this list; the comment in `src/core/gate.ts` points there.
+
 ## Develop and verify
 
 ```sh
