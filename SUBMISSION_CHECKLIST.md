@@ -1,19 +1,19 @@
 # Submission checklist
 
-Prepared for **Kiroween 2026, Resurrection**. Nothing has been published or submitted by this build. The Author performs the public actions below.
+Prepared for **Kiroween 2026, Resurrection**. The [repository](https://github.com/himanshu748/fagans-ghost) and [Inspection Room](https://himanshu748.github.io/fagans-ghost/) are public. The public YouTube video and final Devpost submission are pending.
 
-The [official rules](https://kiroween.devpost.com/rules), checked November 17, 2026, give a submission deadline of **December 4, 2026 at 2:00 PM PST**: December 4 at 22:00 UTC, or **December 5 at 03:30 IST**. The rules were updated November 16. The older `kiro.devpost.com` address describes a different 2025 event; use `kiroween.devpost.com` for this entry.
+The [official rules](https://kiroween.devpost.com/rules), checked November 25, 2026, give a submission deadline of **December 4, 2026 at 2:00 PM PST**: December 4 at 22:00 UTC, or **December 5 at 03:30 IST**. The rules were updated November 16. The older `kiro.devpost.com` address describes a different 2025 event; use `kiroween.devpost.com` for this entry.
 
 ## Ready-to-submit record
 
 | Item | Current state / Author action |
 | --- | --- |
 | Public GitHub repository | https://github.com/himanshu748/fagans-ghost |
-| License | Root [LICENSE](LICENSE) is MIT. Verify GitHub detects it and shows it in About after publication |
+| License | Root [LICENSE](LICENSE) is MIT. Verify that GitHub displays MIT in About |
 | Root `.kiro/` | Specs, hooks, steering, agents and MCP settings exist. Run `npm run check:repo`, confirm they are committed and inspect them on GitHub |
 | Functional app | https://himanshu748.github.io/fagans-ghost/ |
 | Description | [DEVPOST_STORY.md](DEVPOST_STORY.md); update remaining-state paragraph after final verification |
-| YouTube video | [docs/kiroween-demo.mp4](docs/kiroween-demo.mp4) — a 1:43 captioned cut: the saved Codex inspection replayed in the viewer, the Kiro CLI commit-gate evidence, the D001 verification, waiver and follow-up, and the .kiro tour. Author review and upload are pending. Public URL: `YOUR_PUBLIC_YOUTUBE_URL`. [Shotlist](VIDEO_SHOTLIST.md) |
+| YouTube video | [1:43 captioned demo](docs/kiroween-demo.mp4) shows the saved Codex inspection and the separate Kiro CLI gate experiment. Review and upload it publicly, then add the YouTube URL to Devpost. [Shotlist](VIDEO_SHOTLIST.md) |
 | Kiro write-up | [KIRO_USAGE.md](KIRO_USAGE.md); includes actual Kiro experiments, Codex provenance and missing IDE checks |
 | Category | Resurrection |
 | Student bonus | Candidate only; eligibility and personal fields below remain unconfirmed |
@@ -25,12 +25,12 @@ The [official rules](https://kiroween.devpost.com/rules), checked November 17, 2
 - [x] Human Author explicitly waived D001 as a false positive; the exact approved reason is recorded. It is not labeled a verified repair.
 - [x] Actual follow-up passed build/tests and closed insp-0001; JSON/text were exported. If the full video uses another real inspection, retain its provenance too.
 - [ ] Run Kiro IDE Correctness on all three specs. Record its actual output separately from fast-check test results.
-- [ ] Import the power through the IDE into a scratch repository and verify activation and hooks. The scripted install test alone does not establish native activation.
+- [ ] Import the power through the IDE into a scratch repository and verify activation and hooks. Record native activation separately from the scripted install test.
 - [ ] Verify the final Stop suggestion and full role ceremony with Kiro when access is available. Keep Codex footage labeled if used.
 - [x] Check the final closed export in desktop/mobile layouts, keyboard mode, reduced motion and Report view, including its actual waiver and follow-up.
 - [x] Confirm local checks and a clean staged-source snapshot: fresh `npm ci` and production build pass. See `docs/verification.md`.
 - [ ] Inspect tracked files and exports for secrets or private source before publishing.
-- [ ] Verify public repository, viewer and video access without signing in; verify the hosted demo opens and the report is readable.
+- [ ] Complete the hosted Inspection Room walkthrough and confirm the public video plays while signed out.
 - [ ] Reconcile story, README, video and Devpost form against the final behavior. Keep the pre-existing-resource and AI-assistance disclosures.
 
 ## Judging path
@@ -59,56 +59,27 @@ For each participating student, fill these in privately in the submission form. 
 
 Optional blog URL: `YOUR_BLOG_URL`. Publish during the submission period and identify the post as part of Kiroween 2026. Optional social URL: `YOUR_SOCIAL_POST_URL`. Its first text must be `#KiroweenHackathon26`; describe an actual Kiro experience in the Author's own words. Do not claim a startup, previous Kiroween participation or a Crew app without supporting facts.
 
-## Manual GitHub and Pages commands
+## Verify the published build
 
-**These commands are for the Author. They create public resources and have not been run.** First finish local validation and inspect the final commit. GitHub CLI must be installed; authenticate only to the account that should own this public project.
+Run the local checks from a fresh clone of the public repository:
 
-Before pushing, review the author and committer addresses in `git log --format='%h %ae %ce'` and the local paths in the experiment receipts. A push of this branch publishes its reachable history together with the current files.
-
-```sh
-cd /absolute/path/to/fagans-ghost
+~~~sh
 npm ci
-npm test
 npm run build
+npm test
 npx playwright install chromium
 npm run test:e2e
 npm run build:power
 npm run test:power
 npm run check:repo
 npm run check:demo
-git status --short
-git log -1 --oneline
-git remote -v
-```
+~~~
 
-Continue only with the intended committed content and no existing `origin` to a different repository. Replace the username once:
+Open the [public viewer](https://himanshu748.github.io/fagans-ghost/) in a signed-out
+browser, load the demo, and follow the inspection through its recorded waiver.
+Use the reviewed GitHub Pages workflow if the hosted viewer needs refreshing
+after an app change. Keep the demo and repository available through judging.
 
-```sh
-FG_GITHUB_OWNER='himanshu748'
-FG_GITHUB_REPO='fagans-ghost'
-gh auth login --hostname github.com --git-protocol https
-gh auth status
-gh repo create "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" \
-  --public --source=. --remote=origin \
-  --description "Formal code inspection revived with Kiro roles, a deterministic MCP server and the Inspection Room"
-git push --set-upstream origin HEAD:main
-gh repo edit "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" --default-branch main
-```
-
-Enable GitHub Pages with the prepared manual workflow, then explicitly dispatch it:
-
-```sh
-gh api --method POST "repos/$FG_GITHUB_OWNER/$FG_GITHUB_REPO/pages" \
-  -f build_type=workflow
-gh workflow run pages.yml --repo "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" --ref main
-gh run list --repo "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" --workflow pages.yml
-gh api "repos/$FG_GITHUB_OWNER/$FG_GITHUB_REPO/pages" --jq .html_url
-gh api "repos/$FG_GITHUB_OWNER/$FG_GITHUB_REPO/license" --jq .license.spdx_id
-gh repo view "$FG_GITHUB_OWNER/$FG_GITHUB_REPO" --web
-```
-
-The license readback should say `MIT`. Confirm the Pages workflow succeeds before testing the returned URL; configuration alone is not deployment. If Pages already exists, inspect `gh api "repos/$FG_GITHUB_OWNER/$FG_GITHUB_REPO/pages"` instead of repeating creation; change an existing build type with `--method PUT` only if intended. If an organization requires deployment approval, complete that approval in GitHub.
-
-Update the README viewer placeholder and final submission URLs after verifying the hosted app. Keep the app available throughout judging. The workflow is manual; pushing code alone should not deploy it.
-
-Commands follow the official [repository CLI](https://cli.github.com/manual/gh_repo_create), [Pages API](https://docs.github.com/en/rest/pages/pages#create-a-github-pages-site) and [custom Pages workflow](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) documentation. GitHub Pages supports public repositories on GitHub Free. No paid deployment service is needed.
+The recorded inspection used Codex role agents. The [Kiro usage record](KIRO_USAGE.md)
+documents the separate Kiro implementation, delegation and hook experiments.
+Label the runtime in any footage you submit.
