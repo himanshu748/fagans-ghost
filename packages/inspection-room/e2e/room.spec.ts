@@ -6,6 +6,19 @@ const realText = readFileSync(
   "utf8",
 );
 
+test("bundled evidence links open at the requested inspection moment", async ({ page }) => {
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await page.goto("/?demo=reading");
+  await expect(stage.locator(".reading-id")).toHaveText("R023");
+
+  await page.goto("/?demo=finding");
+  await expect(stage.getByRole("heading", { name: "A possible problem" })).toBeVisible();
+
+  await page.goto("/?demo=decision");
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+  await expect(stage.getByRole("heading", { name: "Follow-up passed" })).toBeVisible();
+});
+
 test("actual exported inspection: entry, replay, report, keyboard, mobile and contrast", async ({
   page,
 }, info) => {

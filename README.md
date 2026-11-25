@@ -10,7 +10,7 @@ A local, deterministic MCP server enforces the phases and keeps the record. The 
 
 ![The stage at event 31, with an excerpt from the Reader's actual U023 paraphrase and a highlighted seat](docs/screenshots/stage-desktop.png)
 
-In the hosted viewer, select **Enter the demo inspection**, then **Read the change**, **Review the finding**, and **See the decision**. The replay shows the Author's false-positive waiver for D001. The video labels the [recorded Codex inspection and separate live Kiro hook experiments](KIRO_USAGE.md).
+In the hosted viewer, select **Enter the demo inspection**, then **Read the change**, **Review the finding**, and **See the decision**. The replay shows the Author's false-positive waiver for D001. The video labels the [recorded Codex inspection and separate live Kiro hook experiments](KIRO_USAGE.md). [View the Kiroween entry](https://devpost.com/software/fagan-s-ghost).
 
 ## Open the Inspection Room
 
@@ -25,6 +25,8 @@ npm run dev --workspace inspection-room
 Open the local URL Vite prints, then choose **Enter the demo inspection**. Or choose **Open a report** and select `.fagan/inspections/insp-0001/report.json`. Uploaded files stay in the browser. No backend, account or model API is involved.
 
 Open **Browse all events** for the full event picker and phases, or expand **Source code and evidence** to read the full paraphrase and see the diff. **Report view** opens the plain listing. Reduced motion follows the operating system and can also be enabled in the viewer.
+
+This build accepts `?demo=reading`, `?demo=finding`, and `?demo=decision` on the viewer URL. These links open the corresponding moment in the bundled record so a reviewer can go straight to the evidence.
 
 The bundled record is an actual inspection of this repository: 501 changed lines, 40 Reader paraphrases and one major finding, D001, concerning Git's attached `-C/path` option. The [verification note](docs/inspections/insp-0001-D001-verification.md) shows that Git rejects this syntax, so the human Author explicitly waived D001 as a false positive. It was conducted by **Codex role agents**, using the real MCP server after Kiro reached its usage limit. Its current phase is **Closed**: follow-up reran the build and tests successfully, with D001 retained as **waived**, not fixed or exorcised. See [the exported record](.fagan/inspections/insp-0001/report.json) and [Kiro usage](KIRO_USAGE.md) for provenance.
 

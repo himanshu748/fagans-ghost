@@ -107,6 +107,7 @@ let selectedUnit: string | null = null;
 let sourceName = "";
 let loading = false;
 let error = "";
+type DemoHighlight = "reading" | "finding" | "decision";
 function pause() {
   playing = false;
   if (timer) clearInterval(timer);
@@ -146,6 +147,7 @@ function play() {
 async function load(
   read: (signal: AbortSignal) => Promise<string>,
   name: string,
+  highlight?: DemoHighlight,
 ) {
   pause();
   controller?.abort();
@@ -163,7 +165,7 @@ async function load(
     const next = loadReport(await read(signal));
     if (current !== generation) return;
     report = next;
-    cursor = 0;
+    cursor = highlight ? Math.max(0, replayHighlights(next)[highlight]) : 0;
     selectedUnit = null;
     eventsOpen = false;
     evidenceOpen = false;
@@ -203,7 +205,7 @@ fileInput.addEventListener("change", () => {
   fileInput.value = "";
 });
 topActions.append(fileInput);
-const demo = () =>
+const openDemo = (highlight?: DemoHighlight) =>
   void load(
     (s) =>
       fetchReport(
@@ -212,7 +214,9 @@ const demo = () =>
         s,
       ),
     "Bundled demo · Codex role agents",
+    highlight,
   );
+const demo = () => openDemo();
 function download(name: string, data: string, type: string) {
   const url = URL.createObjectURL(new Blob([data], { type }));
   const a = el("a");
@@ -1186,5 +1190,8 @@ document.addEventListener("keydown", (e) => {
   }
 });
 render();
-const query = new URL(location.href).searchParams.get("report");
-if (query) void load((s) => fetchReport(query, location.href, s), query);
+const params = new URL(location.href).searchParams;
+const reportUrl = params.get("report");
+const highlight = params.get("demo");
+if (reportUrl) void load((s) => fetchReport(reportUrl, location.href, s), reportUrl);
+else if (highlight === "reading" || highlight === "finding" || highlight === "decision") openDemo(highlight);

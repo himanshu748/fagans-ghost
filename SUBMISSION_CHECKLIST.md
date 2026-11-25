@@ -1,6 +1,6 @@
 # Submission checklist
 
-Prepared for **Kiroween 2026, Resurrection**. The [repository](https://github.com/himanshu748/fagans-ghost) and [Inspection Room](https://himanshu748.github.io/fagans-ghost/) are public. The public YouTube video and final Devpost submission are pending.
+Entered in **Kiroween 2026, Resurrection**. Devpost recorded the [submission](https://devpost.com/software/fagan-s-ghost) on November 25, 2026. The [repository](https://github.com/himanshu748/fagans-ghost), [Inspection Room](https://himanshu748.github.io/fagans-ghost/), and [YouTube demo](https://www.youtube.com/watch?v=01w_wCccRWY) are public.
 
 The [official rules](https://kiroween.devpost.com/rules), checked November 25, 2026, give a submission deadline of **December 4, 2026 at 2:00 PM PST**: December 4 at 22:00 UTC, or **December 5 at 03:30 IST**. The rules were updated November 16. The older `kiro.devpost.com` address describes a different 2025 event; use `kiroween.devpost.com` for this entry.
 
@@ -13,12 +13,12 @@ The [official rules](https://kiroween.devpost.com/rules), checked November 25, 2
 | Root `.kiro/` | Specs, hooks, steering, agents and MCP settings exist. Run `npm run check:repo`, confirm they are committed and inspect them on GitHub |
 | Functional app | https://himanshu748.github.io/fagans-ghost/ |
 | Description | [DEVPOST_STORY.md](DEVPOST_STORY.md); update remaining-state paragraph after final verification |
-| YouTube video | [1:43 captioned demo](docs/kiroween-demo.mp4) shows the saved Codex inspection and the separate Kiro CLI gate experiment. Review and upload it publicly, then add the YouTube URL to Devpost. [Shotlist](VIDEO_SHOTLIST.md) |
+| YouTube video | [1:43 captioned demo](https://www.youtube.com/watch?v=01w_wCccRWY) is attached to the Devpost entry. It shows the saved Codex inspection and the separate Kiro CLI gate experiment. [Archived video](docs/kiroween-demo.mp4) |
 | Kiro write-up | [KIRO_USAGE.md](KIRO_USAGE.md); includes actual Kiro experiments, Codex provenance and missing IDE checks |
 | Category | Resurrection |
 | Student bonus | Candidate only; eligibility and personal fields below remain unconfirmed |
 | Blog / Social Blitz | Optional, Author-written and Author-published; URLs pending if pursued |
-| Final Devpost submission | Not performed |
+| Final Devpost submission | [Submitted and verified on Devpost](https://devpost.com/software/fagan-s-ghost) |
 
 ## Product and evidence gates
 
