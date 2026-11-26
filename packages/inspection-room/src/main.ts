@@ -166,8 +166,14 @@ async function load(
   loading = true;
   error = "";
   render();
+  let onAbort: (() => void) | undefined;
   try {
-    const next = loadReport(await read(signal));
+    // A local File.text() read does not observe the signal.
+    const aborted = new Promise<never>((_, reject) => {
+      onAbort = () => reject(signal.reason);
+      signal.addEventListener("abort", onAbort, { once: true });
+    });
+    const next = loadReport(await Promise.race([read(signal), aborted]));
     if (current !== generation) return;
     report = next;
     cursor = highlight ? Math.max(0, replayHighlights(next)[highlight]) : 0;
@@ -185,6 +191,7 @@ async function load(
         : String(e);
   } finally {
     clearTimeout(timeout);
+    if (onAbort) signal.removeEventListener("abort", onAbort);
     if (current === generation) {
       loading = false;
       render();

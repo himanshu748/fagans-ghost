@@ -61,6 +61,42 @@ test("canceling a replacement upload preserves the current inspection moment", a
   await expect(page.getByRole("heading", { name: "Replacement inspection" })).toHaveCount(0);
 });
 
+test("a timed-out replacement cannot replace the current inspection", async ({ page }) => {
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await page.goto("/?demo=decision");
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+  await page.clock.install();
+  await page.evaluate(() => {
+    const read = File.prototype.text;
+    File.prototype.text = async function (this: File) {
+      if (this.name !== "slow.json") return read.call(this);
+      await new Promise<void>((resolve) => {
+        window.addEventListener("test-release-slow-report", () => resolve(), { once: true });
+      });
+      const text = await read.call(this);
+      window.dispatchEvent(new Event("test-slow-report-read"));
+      return text;
+    };
+  });
+  const replacement = JSON.parse(realText);
+  replacement.inspection.title = "Slow replacement inspection";
+  await page.getByLabel("Choose inspection report").setInputFiles({
+    name: "slow.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(replacement)),
+  });
+  await expect(page.getByRole("button", { name: "Cancel loading" })).toBeVisible();
+  await page.clock.fastForward(20_001);
+  await expect(page.getByRole("alert")).toContainText("Loading stopped or timed out", { timeout: 2000 });
+  await page.getByRole("button", { name: "Return to current report" }).click();
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    window.addEventListener("test-slow-report-read", () => resolve(), { once: true });
+    window.dispatchEvent(new Event("test-release-slow-report"));
+  }));
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Slow replacement inspection" })).toHaveCount(0);
+});
+
 test("returning home from Report view starts the next demo in the inspection room", async ({ page }) => {
   await page.goto("/?demo=decision");
   const view = page.getByRole("button", { name: "Report view" });
