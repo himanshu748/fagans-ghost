@@ -411,7 +411,13 @@ function render() {
     s.append(
       el("h1", "The record could not be opened"),
       el("p", error),
-      button("Back to load screen", reset),
+      report
+        ? button("Return to current report", () => {
+            error = "";
+            render();
+            main.focus();
+          })
+        : button("Back to load screen", reset),
     );
     main.append(s);
     return;
