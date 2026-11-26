@@ -69,6 +69,17 @@ To read the saved inspection in a terminal:
 less .fagan/inspections/insp-0001/report.txt
 ```
 
+To share a report from an inspection you ran, replace `YOUR_INSPECTION_ID` with
+the ID printed when it started, then run this from the inspected repository after
+building the CLI:
+
+```sh
+node /path/to/fagans-ghost/packages/fagan-mcp/dist/cli.js export YOUR_INSPECTION_ID --format html
+```
+
+Open the returned `report.html` path in a browser. The file includes source
+excerpts and findings, so review its contents before sharing it.
+
 For a new real inspection, `node scripts/mcp-call.mjs open_inspection '<JSON arguments>'` calls the same stdio server. Supply `role`, `title`, `base` and `head`. This starts an inspection. The participants then provide readings and findings. Metrics and export calls append to the inspection log, so use the saved reports when replaying the bundled demo. See [tool schemas and roles](packages/fagan-mcp/src/server/server.ts).
 
 ## Bring the ritual to another repository
