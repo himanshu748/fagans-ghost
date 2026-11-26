@@ -113,10 +113,15 @@ function pause() {
   if (timer) clearInterval(timer);
   timer = undefined;
 }
-function reset() {
-  pause();
+function abortLoading() {
   generation++;
   controller?.abort();
+  controller = undefined;
+  loading = false;
+}
+function reset() {
+  pause();
+  abortLoading();
   report = null;
   cursor = 0;
   plain = false;
@@ -124,7 +129,6 @@ function reset() {
   eventsOpen = false;
   evidenceOpen = false;
   error = "";
-  loading = false;
   planchetteAt = CENTER;
   render();
 }
@@ -402,7 +406,15 @@ function render() {
     s.append(
       el("h1", "Opening the record…"),
       el("p", "Reading and validating the inspection."),
-      button("Cancel loading", reset),
+      button("Cancel loading", () => {
+        if (!report) {
+          reset();
+          return;
+        }
+        abortLoading();
+        render();
+        main.focus();
+      }),
     );
     main.append(s);
     return;
