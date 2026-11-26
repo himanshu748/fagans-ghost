@@ -25,6 +25,42 @@ test("a failed upload lets readers return to the same inspection moment", async 
   await expect(page.getByRole("main")).toBeFocused();
 });
 
+test("canceling a replacement upload preserves the current inspection moment", async ({ page }) => {
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await page.goto("/?demo=decision");
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+
+  await page.evaluate(() => {
+    const read = File.prototype.text;
+    File.prototype.text = async function (this: File) {
+      if (this.name !== "replacement.json") return read.call(this);
+      await new Promise<void>((resolve) => {
+        window.addEventListener("test-release-replacement", () => resolve(), { once: true });
+      });
+      const text = await read.call(this);
+      window.dispatchEvent(new Event("test-replacement-read"));
+      return text;
+    };
+  });
+  const replacement = JSON.parse(realText);
+  replacement.inspection.title = "Replacement inspection";
+  await page.getByLabel("Choose inspection report").setInputFiles({
+    name: "replacement.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(replacement)),
+  });
+  await page.getByRole("button", { name: "Cancel loading" }).click();
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
+
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    window.addEventListener("test-replacement-read", () => resolve(), { once: true });
+    window.dispatchEvent(new Event("test-release-replacement"));
+  }));
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Replacement inspection" })).toHaveCount(0);
+});
+
 test("returning home from Report view starts the next demo in the inspection room", async ({ page }) => {
   await page.goto("/?demo=decision");
   const view = page.getByRole("button", { name: "Report view" });
