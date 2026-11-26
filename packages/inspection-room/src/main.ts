@@ -119,6 +119,7 @@ function reset() {
   controller?.abort();
   report = null;
   cursor = 0;
+  plain = false;
   selectedUnit = null;
   eventsOpen = false;
   evidenceOpen = false;
@@ -395,6 +396,7 @@ function render() {
   root.classList.toggle("room-view", !!report && !loading && !error && !plain);
   viewButton.textContent = plain ? "Room view" : "Report view";
   viewButton.setAttribute("aria-pressed", String(plain));
+  viewButton.disabled = !report || loading || !!error;
   if (loading) {
     const s = el("section", "", "notice");
     s.append(
@@ -611,8 +613,6 @@ function landing() {
     ),
   );
   main.append(demoNote);
-  if (plain)
-    main.append(el("p", "Open an inspection to read its plain report."));
 }
 function jumpToEvent(index: number) {
   pause();

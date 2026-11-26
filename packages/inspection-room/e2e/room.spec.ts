@@ -25,6 +25,20 @@ test("a failed upload lets readers return to the same inspection moment", async 
   await expect(page.getByRole("main")).toBeFocused();
 });
 
+test("returning home from Report view starts the next demo in the inspection room", async ({ page }) => {
+  await page.goto("/?demo=decision");
+  const view = page.getByRole("button", { name: "Report view" });
+  await view.click();
+  await expect(page.getByRole("region", { name: "Green-bar listing" })).toBeVisible();
+  await page.getByRole("button", { name: "Fagan's Ghost", exact: true }).click();
+
+  await expect(view).toBeDisabled();
+  await page.getByRole("button", { name: "Enter the demo inspection" }).click();
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await expect(stage.getByRole("heading", { name: "A code change under review" })).toBeVisible();
+  await expect(view).toBeEnabled();
+});
+
 test("bundled evidence links open at the requested inspection moment", async ({ page }) => {
   const stage = page.getByRole("region", { name: "Inspection stage" });
   await page.goto("/?demo=reading");
