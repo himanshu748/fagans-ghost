@@ -6,6 +6,25 @@ const realText = readFileSync(
   "utf8",
 );
 
+test("a failed upload lets readers return to the same inspection moment", async ({ page }) => {
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await page.goto("/?demo=decision");
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+
+  await page.getByLabel("Choose inspection report").setInputFiles({
+    name: "broken.json",
+    mimeType: "application/json",
+    buffer: Buffer.from("{broken"),
+  });
+  await expect(page.getByRole("alert")).toContainText("The record could not be opened");
+  const resume = page.getByRole("button", { name: "Return to current report" });
+  await resume.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
+});
+
 test("bundled evidence links open at the requested inspection moment", async ({ page }) => {
   const stage = page.getByRole("region", { name: "Inspection stage" });
   await page.goto("/?demo=reading");
