@@ -818,6 +818,7 @@ function replayScene(
       if (!e) continue;
       const item = el("li", "", i === cursor ? "current" : "");
       const jump = button(`${i + 1}. ${eventName(e.tool)}`, () => jumpToEvent(i));
+      jump.dataset["focus"] = `ledger-event-${i}`;
       if (i === cursor) jump.setAttribute("aria-current", "step");
       const who = seats.find(([id]) => id === e.role)?.[1] ?? e.role ?? "Server";
       item.append(jump, el("span", who, "ledger-who"));
