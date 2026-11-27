@@ -33,6 +33,24 @@ test("keyboard focus stays in the replay transport at both endpoints", async ({ 
   await expect(next).toBeFocused({ timeout: 2000 });
 });
 
+test("keyboard focus stays on the selected event in the replay ledger", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile", "The replay ledger is hidden at compact widths.");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Enter the demo inspection →" }).click();
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  const second = stage.getByRole("button", { name: /\b2\. Packet consulted/ });
+  await second.focus();
+  await page.keyboard.press("Enter");
+  await expect(second).toHaveAttribute("aria-current", "step");
+  await expect(second).toBeFocused({ timeout: 2000 });
+  await page.keyboard.press("Tab");
+  const third = stage.getByRole("button", { name: /\b3\. Packet consulted/ });
+  await expect(third).toBeFocused({ timeout: 2000 });
+  await page.keyboard.press("Enter");
+  await expect(third).toHaveAttribute("aria-current", "step");
+  await expect(third).toBeFocused({ timeout: 2000 });
+});
+
 test("JSON download preserves the bundled export and a replacement's original bytes", async ({ page }) => {
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const downloadDigest = async () => {
