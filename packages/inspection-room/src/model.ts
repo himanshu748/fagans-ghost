@@ -59,6 +59,8 @@ export function reportUrl(input: string, base: string): URL {
   return url;
 }
 
+export class ReportRequestError extends Error {}
+
 export async function fetchReport(
   input: string,
   base: string,
@@ -68,11 +70,16 @@ export async function fetchReport(
     signal,
     redirect: "error",
     credentials: "omit",
+  }).catch((cause: unknown) => {
+    if (signal.aborted) throw cause;
+    throw new ReportRequestError("Could not connect to the report.", { cause });
   });
-  if (!response.ok)
-    throw new Error(
-      `Could not load report (HTTP ${response.status}). Choose another report or retry.`,
-    );
+  if (!response.ok) {
+    const message = `Could not load report (HTTP ${response.status}).`;
+    if (response.status === 408 || response.status === 429 || response.status >= 500)
+      throw new ReportRequestError(message);
+    throw new Error(`${message} Choose another report.`);
+  }
   if (Number(response.headers.get("content-length")) > MAX_BYTES)
     throw new Error("Report exceeds the 10 MiB limit.");
   if (!response.body) throw new Error("The report response is empty.");

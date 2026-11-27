@@ -149,6 +149,22 @@ test("bundled evidence links open at the requested inspection moment", async ({ 
   await expect(stage.getByRole("heading", { name: "Follow-up passed" })).toBeVisible();
 });
 
+test("retrying a remote report preserves the requested evidence link", async ({ page }) => {
+  let requests = 0;
+  await page.route("**/demo/report.json", async (route) => {
+    requests++;
+    if (requests === 1) await route.fulfill({ status: 503 });
+    else await route.continue();
+  });
+  await page.goto("/?demo=decision");
+  await expect(page.getByRole("alert").getByText(/HTTP 503/)).toBeVisible();
+  await page.getByRole("button", { name: "Retry report" }).click();
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+  await expect(stage.getByRole("heading", { name: "Follow-up passed" })).toBeVisible();
+  expect(requests).toBe(2);
+});
+
 test("a finding links from the report to its exact evidence in the replay", async ({ page }) => {
   await page.goto("/?demo=finding");
   const report = page.getByRole("button", { name: "Report view" });
