@@ -228,6 +228,38 @@ export function replayHighlights(report: Report) {
   return { reading: related >= 0 ? related : firstReading, finding, decision: followup >= 0 ? followup : author, defect };
 }
 
+/** Locate the recorded evidence for a specific finding in the full report. */
+export function findingTrail(report: Report, defect: Defect) {
+  const { events } = report;
+  const finding = events.findIndex(
+    (event) => event.tool === "log_defect" && event.data["defect_id"] === defect.id,
+  );
+  if (finding < 0) return [];
+
+  const readings = new Set(report.readings.readings
+    .filter((reading) => reading.unitId === defect.unitId)
+    .map((reading) => reading.id));
+  const attempts = new Set(report.followup.attempts
+    .filter((attempt) => attempt.defects.some((result) => result.defectId === defect.id))
+    .map((attempt) => attempt.n));
+  const reading = events.findLastIndex((event, index) => index < finding
+    && event.tool === "record_reading" && typeof event.data["reading_id"] === "string"
+    && readings.has(event.data["reading_id"]));
+  const author = events.findLastIndex((event, index) => index > finding
+    && event.tool === "record_rework" && Array.isArray(event.data["items"])
+    && event.data["items"].some((item) => item && typeof item === "object"
+      && !Array.isArray(item) && item["defect_id"] === defect.id));
+  const followup = events.findLastIndex((event, index) => index > Math.max(finding, author)
+    && (event.tool === "follow_up" || event.tool === "cli:follow-up")
+    && typeof event.data["attempt"] === "number" && attempts.has(event.data["attempt"]));
+  return [
+    { index: reading, label: "Reader’s paraphrase" },
+    { index: finding, label: "Finding logged" },
+    { index: author, label: "Author’s decision" },
+    { index: followup, label: "Follow-up result" },
+  ].filter(({ index }) => index >= 0);
+}
+
 export function eventName(tool: string): string {
   const names: Record<string, string> = {
     open_inspection: "Inspection opened",

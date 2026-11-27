@@ -6,6 +6,7 @@ import {
   defectStatus,
   eventName,
   fetchReport,
+  findingTrail,
   fmt,
   loadReport,
   MAX_BYTES,
@@ -104,6 +105,7 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let generation = 0;
 let controller: AbortController | undefined;
 let selectedUnit: string | null = null;
+let selectedFinding: string | null = null;
 let sourceName = "";
 let loading = false;
 let error = "";
@@ -126,6 +128,7 @@ function reset() {
   cursor = 0;
   plain = false;
   selectedUnit = null;
+  selectedFinding = null;
   eventsOpen = false;
   evidenceOpen = false;
   error = "";
@@ -135,6 +138,7 @@ function reset() {
 function step(delta: number) {
   if (!report) return;
   selectedUnit = null;
+  selectedFinding = null;
   cursor = Math.max(0, Math.min(report.events.length - 1, cursor + delta));
   if (cursor === report.events.length - 1) pause();
   render();
@@ -178,6 +182,7 @@ async function load(
     report = next;
     cursor = highlight ? Math.max(0, replayHighlights(next)[highlight]) : 0;
     selectedUnit = null;
+    selectedFinding = null;
     eventsOpen = false;
     evidenceOpen = false;
     sourceName = name;
@@ -637,6 +642,7 @@ function jumpToEvent(index: number) {
   pause();
   cursor = index;
   selectedUnit = null;
+  selectedFinding = null;
   render();
 }
 
@@ -644,6 +650,7 @@ function revealFinding(defect: Defect) {
   pause();
   evidenceOpen = true;
   selectedUnit = defect.unitId;
+  selectedFinding = defect.id;
   render();
   const card = [...main.querySelectorAll<HTMLElement>("[data-finding]")].find(
     (node) => node.dataset["finding"] === defect.id,
@@ -908,9 +915,10 @@ function room(r: Report, actions: HTMLDivElement) {
   transport.append(buttons, position, allEvents);
   allEvents.append(eventLabel);
   controls.append(transport);
-  const focusDefect = state.event?.tool === "log_defect"
-    ? state.defects.find((defect) => defect.id === state.event?.data["defect_id"])
-    : state.defects.find((defect) => defect.id === highlights.defect?.id);
+  const focusId = state.event?.tool === "log_defect"
+    ? state.event.data["defect_id"]
+    : selectedFinding ?? highlights.defect?.id;
+  const focusDefect = state.defects.find((defect) => defect.id === focusId);
   player.append(replayScene(r, state, sceneReading, controls, focusDefect));
   main.append(player);
 
@@ -982,6 +990,7 @@ function room(r: Report, actions: HTMLDivElement) {
   units.addEventListener("change", () => {
     pause();
     selectedUnit = units.value;
+    selectedFinding = null;
     render();
   });
   unitLabel.append(units);
@@ -1121,7 +1130,33 @@ function plainReport(r: Report) {
   section.append(el("h2", "Defect log"));
   if (!r.defects.defects.length)
     section.append(el("p", "No ghosts. This inspection logged no defects."));
-  for (const d of r.defects.defects) section.append(defectCard(r, d));
+  for (const defect of r.defects.defects) {
+    const card = defectCard(r, defect);
+    const trail = findingTrail(r, defect);
+    if (trail.length) {
+      const steps = el("nav", "", "finding-trail");
+      steps.setAttribute("aria-label", `${defect.id} replay evidence`);
+      for (const { index, label } of trail) {
+        steps.append(button(label, () => {
+          pause();
+          plain = false;
+          cursor = index;
+          selectedUnit = defect.unitId;
+          selectedFinding = defect.id;
+          evidenceOpen = true;
+          render();
+          const heading = main.querySelector<HTMLElement>(".replay-scene h2");
+          if (heading) {
+            heading.tabIndex = -1;
+            heading.focus({ preventScroll: true });
+            heading.scrollIntoView({ block: "nearest" });
+          }
+        }));
+      }
+      card.append(steps);
+    }
+    section.append(card);
+  }
   section.append(el("h2", "Rework and follow-up"));
   if (!r.rework.items.length)
     section.append(el("p", "No Author rework has been recorded."));

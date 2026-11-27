@@ -124,6 +124,34 @@ test("bundled evidence links open at the requested inspection moment", async ({ 
   await expect(stage.getByRole("heading", { name: "Follow-up passed" })).toBeVisible();
 });
 
+test("a finding links from the report to its exact evidence in the replay", async ({ page }) => {
+  await page.goto("/?demo=finding");
+  const report = page.getByRole("button", { name: "Report view" });
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  const trail = page.getByRole("navigation", { name: "D001 replay evidence" });
+  await report.click();
+  await trail.getByRole("button", { name: "Reader’s paraphrase" }).click();
+  await expect(stage.getByRole("heading", { name: "Read the change" })).toBeFocused();
+  await expect(stage.locator(".reading-id")).toHaveText("R023");
+  await expect(page.getByLabel("Reading unit", { exact: true })).toHaveValue("U023");
+  await expect(page.getByRole("article", { name: "D001, major defect" })).toHaveCount(0);
+
+  await report.click();
+  await trail.getByRole("button", { name: "Finding logged" }).click();
+  await expect(stage.getByRole("heading", { name: "A possible problem" })).toBeFocused();
+  await expect(page.getByRole("article", { name: "D001, major defect" })).toContainText("Open");
+
+  await report.click();
+  await trail.getByRole("button", { name: "Author’s decision" }).click();
+  await expect(stage.getByRole("heading", { name: "The Author responds" })).toBeFocused();
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+
+  await report.click();
+  await trail.getByRole("button", { name: "Follow-up result" }).click();
+  await expect(stage.getByRole("heading", { name: "Follow-up passed" })).toBeFocused();
+  await expect(page.getByRole("article", { name: "D001, major defect" })).toContainText("Bound by the Author: waived");
+});
+
 test("actual exported inspection: entry, replay, report, keyboard, mobile and contrast", async ({
   page,
 }, info) => {
