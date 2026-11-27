@@ -7,6 +7,24 @@ const realText = readFileSync(
   "utf8",
 );
 
+test("keyboard navigation skips the visually hidden report input", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Shortcuts ?" }).focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Enter the demo inspection →" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Open a report" })).toBeFocused();
+
+  const chooser = page.waitForEvent("filechooser");
+  await page.keyboard.press("Enter");
+  await (await chooser).setFiles({
+    name: "review.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(realText),
+  });
+  await expect(page.getByRole("region", { name: "Inspection stage" })).toBeVisible();
+});
+
 test("keyboard focus stays in the replay transport at both endpoints", async ({ page }) => {
   await page.goto("/?demo=decision");
   const controls = page.getByRole("region", { name: "Playback controls" });
