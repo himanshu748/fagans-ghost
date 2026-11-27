@@ -106,6 +106,26 @@ test("canceling a replacement upload preserves the current inspection moment", a
   await expect(page.getByRole("heading", { name: "Replacement inspection" })).toHaveCount(0);
 });
 
+test("keyboard focus follows a pending demo and its cancellation", async ({ page }) => {
+  await page.route("**/demo/report.json", () => {});
+  await page.goto("/");
+  const entry = page.getByRole("button", { name: /Enter the demo inspection/ });
+  await entry.focus();
+  await page.keyboard.press("Enter");
+
+  const cancel = page.getByRole("button", { name: "Cancel loading" });
+  await expect(cancel).toBeFocused({ timeout: 2000 });
+  const initialControl = await cancel.elementHandle();
+  const reduced = await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+  await page.emulateMedia({ reducedMotion: reduced ? "no-preference" : "reduce" });
+  await expect.poll(() => initialControl!.evaluate((control) => control.isConnected)).toBe(false);
+  await expect(cancel).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(entry).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
+});
+
 test("a timed-out replacement cannot replace the current inspection", async ({ page }) => {
   const stage = page.getByRole("region", { name: "Inspection stage" });
   await page.goto("/?demo=decision");
