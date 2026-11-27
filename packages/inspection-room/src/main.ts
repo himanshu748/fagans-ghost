@@ -228,7 +228,7 @@ const fileInput = el("input");
 fileInput.type = "file";
 fileInput.accept = ".json,application/json";
 fileInput.setAttribute("aria-label", "Choose inspection report");
-fileInput.className = "sr-only";
+fileInput.hidden = true;
 fileInput.addEventListener("change", () => {
   const f = fileInput.files?.[0];
   if (f) openFile(f);
