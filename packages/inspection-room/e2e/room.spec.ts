@@ -50,6 +50,26 @@ test("a failed upload lets readers return to the same inspection moment", async 
   await expect(page.getByRole("main")).toBeFocused();
 });
 
+test("malformed UTF-8 cannot silently change source evidence", async ({ page }) => {
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await page.goto("/?demo=decision");
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+
+  const replacement = JSON.parse(realText);
+  replacement.packet.units[0].lines[0].text = "SYNTHETIC_SOURCE_MARKER";
+  const bytes = Buffer.from(JSON.stringify(replacement));
+  bytes[bytes.indexOf("SYNTHETIC_SOURCE_MARKER")] = 0x80;
+  await page.getByLabel("Choose inspection report").setInputFiles({
+    name: "damaged.json",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
+
+  await expect(page.getByRole("alert")).toContainText("Report is not valid UTF-8");
+  await page.getByRole("button", { name: "Return to current report" }).click();
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+});
+
 test("canceling a replacement upload preserves the current inspection moment", async ({ page }) => {
   const stage = page.getByRole("region", { name: "Inspection stage" });
   await page.goto("/?demo=decision");

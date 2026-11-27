@@ -183,7 +183,13 @@ async function load(
       signal.addEventListener("abort", onAbort, { once: true });
     });
     const bytes = await Promise.race([read(signal), aborted]);
-    const next = loadReport(new TextDecoder().decode(bytes));
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      throw new Error("Report is not valid UTF-8. Export a fresh JSON report.");
+    }
+    const next = loadReport(text);
     if (current !== generation) return;
     opened = { report: next, bytes, name };
     cursor = highlight ? Math.max(0, replayHighlights(next)[highlight]) : 0;
