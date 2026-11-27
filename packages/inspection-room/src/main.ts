@@ -174,7 +174,7 @@ async function load(
   loading = true;
   error = "";
   retryLoad = null;
-  render();
+  render(true);
   let onAbort: (() => void) | undefined;
   try {
     // A local File.arrayBuffer() read does not observe the signal.
@@ -416,7 +416,7 @@ function glidePlanchette(next: Pt) {
     { duration: 1000, easing: "cubic-bezier(.16,.7,.24,1)" },
   );
 }
-function render() {
+function render(focusLoading = false) {
   const focused =
     document.activeElement instanceof HTMLElement
       ? document.activeElement.dataset["focus"]
@@ -428,20 +428,21 @@ function render() {
   viewButton.disabled = !opened || loading || !!error;
   if (loading) {
     const s = el("section", "", "notice");
+    const cancel = button("Cancel loading", () => {
+      if (opened) {
+        abortLoading();
+        render();
+      } else reset();
+      main.focus();
+    });
+    cancel.dataset["focus"] = "cancel-loading";
     s.append(
       el("h1", "Opening the record…"),
       el("p", "Reading and validating the inspection."),
-      button("Cancel loading", () => {
-        if (!opened) {
-          reset();
-          return;
-        }
-        abortLoading();
-        render();
-        main.focus();
-      }),
+      cancel,
     );
     main.append(s);
+    if (focusLoading || focused === "cancel-loading") cancel.focus({ preventScroll: true });
     return;
   }
   if (error) {
