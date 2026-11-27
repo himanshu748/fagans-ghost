@@ -177,6 +177,63 @@ test("a finding links from the report to its exact evidence in the replay", asyn
   await expect(page.getByRole("article", { name: "D001, major defect" })).toContainText("Bound by the Author: waived");
 });
 
+test("ArrowDown opens the decision's finding in its source code", async ({ page }) => {
+  await page.goto("/?demo=decision");
+  const stage = page.getByRole("region", { name: "Inspection stage" });
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+  await page.getByRole("main").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("article", { name: "D001, major defect" })).toBeFocused();
+  await expect(stage.getByText("The Author waived D001.")).toBeVisible();
+});
+
+test("finding shortcuts move across reading units and wrap in room and report views", async ({ page }) => {
+  const sample = JSON.parse(realText);
+  const first = sample.defects.defects[0];
+  const secondUnit = sample.packet.units[0];
+  const secondLine = secondUnit.lines.find((line: { newNo: number | null }) => line.newNo !== null);
+  const event = sample.events.find((entry: { tool: string }) => entry.tool === "log_defect");
+  sample.defects.defects.push({
+    ...first,
+    id: "D002",
+    unitId: secondUnit.id,
+    location: { ...first.location, file: secondUnit.file, lineStart: secondLine.newNo, lineEnd: secondLine.newNo },
+    description: "Test-only second finding",
+  });
+  sample.events.splice(event.seq, 0, {
+    ...event,
+    data: { ...event.data, defect_id: "D002", unit_id: secondUnit.id },
+  });
+  sample.events.forEach((entry: { seq: number }, index: number) => { entry.seq = index + 1; });
+
+  await page.goto("/");
+  await page.getByLabel("Choose inspection report").setInputFiles({
+    name: "test-findings.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(sample)),
+  });
+  const guide = page.getByRole("navigation", { name: "Inspection highlights" });
+  await guide.getByRole("button", { name: "See the decision" }).click();
+  const firstCard = page.getByRole("article", { name: "D001, major defect" });
+  const secondCard = page.getByRole("article", { name: "D002, major defect" });
+  await page.keyboard.press("ArrowUp");
+  await expect(secondCard).toBeFocused();
+  await expect(page.getByLabel("Reading unit", { exact: true })).toHaveValue(secondUnit.id);
+  await page.keyboard.press("ArrowDown");
+  await expect(firstCard).toBeFocused();
+  await expect(page.getByLabel("Reading unit", { exact: true })).toHaveValue(first.unitId);
+  await page.keyboard.press("ArrowUp");
+  await expect(secondCard).toBeFocused();
+
+  await page.getByRole("button", { name: "Report view" }).click();
+  await page.keyboard.press("ArrowDown");
+  await expect(firstCard).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(secondCard).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(firstCard).toBeFocused();
+});
+
 test("actual exported inspection: entry, replay, report, keyboard, mobile and contrast", async ({
   page,
 }, info) => {

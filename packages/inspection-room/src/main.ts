@@ -653,15 +653,17 @@ function revealFinding(defect: Defect) {
   selectedUnit = defect.unitId;
   selectedFinding = defect.id;
   render();
-  const card = [...main.querySelectorAll<HTMLElement>("[data-finding]")].find(
-    (node) => node.dataset["finding"] === defect.id,
-  );
+  if (!focusFinding(defect.id))
+    main.querySelector<HTMLElement>('[data-focus="units"]')?.focus();
+}
+
+function focusFinding(id: string): boolean {
+  const card = main.querySelector<HTMLElement>(`[data-finding="${CSS.escape(id)}"]`);
   if (card) {
     card.focus({ preventScroll: true });
     card.scrollIntoView({ block: "nearest", inline: "nearest" });
-  } else {
-    main.querySelector<HTMLElement>('[data-focus="units"]')?.focus();
   }
+  return Boolean(card);
 }
 
 type ReplayFrame = ReturnType<typeof atEvent>;
@@ -1214,7 +1216,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     help.showModal();
   }
-  if (!opened) return;
+  if (!opened || loading || error) return;
   if (e.key.toLowerCase() === "r") {
     e.preventDefault();
     pause();
@@ -1229,25 +1231,28 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     play();
   }
-  if (
-    e.target instanceof HTMLElement &&
-    e.target.closest(".code-block, .greenbar")
-  )
+  const target = e.target instanceof HTMLElement ? e.target : null;
+  const inSource = target?.closest(".code-block, .greenbar");
+  const findingId = target?.closest<HTMLElement>("[data-finding]")?.dataset["finding"];
+  if ((e.key === "ArrowUp" || e.key === "ArrowDown") && (!inSource || findingId)) {
+    const report = opened.report;
+    const defects = plain ? report.defects.defects : atEvent(report, cursor).defects;
+    if (!defects.length) return;
+    const current = defects.findIndex((defect) => defect.id === findingId);
+    const direction = e.key === "ArrowDown" ? 1 : -1;
+    const next = current < 0
+      ? (direction === 1 ? 0 : defects.length - 1)
+      : (current + direction + defects.length) % defects.length;
+    e.preventDefault();
+    if (plain) focusFinding(defects[next]!.id);
+    else revealFinding(defects[next]!);
     return;
+  }
+  if (inSource) return;
   if (!plain && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
     e.preventDefault();
     pause();
     step(e.key === "ArrowRight" ? 1 : -1);
-  }
-  if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-    const cards = [...main.querySelectorAll<HTMLElement>(".ghost")];
-    if (cards.length) {
-      e.preventDefault();
-      const i = cards.indexOf(document.activeElement as HTMLElement);
-      cards[
-        (i + (e.key === "ArrowDown" ? 1 : -1) + cards.length) % cards.length
-      ]?.focus();
-    }
   }
 });
 render();
