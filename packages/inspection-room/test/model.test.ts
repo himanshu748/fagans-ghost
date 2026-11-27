@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   atEvent,
   defectStatus,
+  findingTrail,
   loadReport,
   MAX_BYTES,
   replayHighlights,
@@ -79,6 +80,28 @@ describe("Inspection Room report boundary", () => {
     partial.followup.attempts = [];
     expect(replayHighlights(partial).decision).toBe(-1);
     expect(replayHighlights(partial).finding).toBe(highlights.finding);
+  });
+  it("links only the reading, decision and follow-up recorded for the selected finding", () => {
+    const fixture = structuredClone(report);
+    const defect = fixture.defects.defects[0]!;
+    const reading = fixture.events.findIndex((e) => e.data["reading_id"] === "R023");
+    const logged = fixture.events.findIndex((e) => e.tool === "log_defect");
+    const author = fixture.events.findIndex((e) => e.tool === "record_rework");
+    const followup = fixture.events.findIndex((e) => e.tool === "follow_up");
+    const unrelated = { ...fixture.followup.attempts[0]!, n: 50, defects: [] };
+    fixture.followup.attempts.push(unrelated);
+    fixture.events.push({ ...fixture.events[followup]!, data: { attempt: unrelated.n } });
+    expect(findingTrail(fixture, defect).map(({ index }) => index)).toEqual([
+      reading, logged, author, followup,
+    ]);
+
+    const other = { ...defect, id: "D002", unitId: "U001" };
+    fixture.defects.defects.push(other);
+    expect(findingTrail(fixture, other)).toEqual([]);
+    fixture.events.push({ ...fixture.events[logged]!, data: { defect_id: other.id } });
+    expect(findingTrail(fixture, other).map(({ label }) => label)).toEqual([
+      "Reader’s paraphrase", "Finding logged",
+    ]);
   });
   it("IR-R5 replays the actual Author waiver and passing follow-up", () => {
     const defect = report.defects.defects[0]!;

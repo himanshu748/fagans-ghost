@@ -567,6 +567,13 @@ select {
 }
 .plain-report h2 { margin: 27px 0 12px; }
 .plain-report h2:first-child { margin-top: 0; }
+.finding-trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+}
+.finding-trail button { padding-inline: 10px; font-size: 12px; }
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -751,7 +758,7 @@ body:has(dialog[open]) { overflow: hidden; }
 }
 
 @media print {
-  header, footer, .skip, .actions, .playback, .room-grid, dialog, .sr-only { display: none !important; }
+  header, footer, .skip, .actions, .playback, .room-grid, .finding-trail, dialog, .sr-only { display: none !important; }
   body {
     background: white;
     color: black;
