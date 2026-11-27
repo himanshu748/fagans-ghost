@@ -24,6 +24,8 @@ npm run dev --workspace inspection-room
 
 Open the local URL Vite prints, then choose **Enter the demo inspection**. Or choose **Open a report** and select `.fagan/inspections/insp-0001/report.json`. Uploaded files stay in the browser. No backend, account or model API is involved.
 
+In **Report view**, **Download JSON** saves the original export bytes, so the file can be compared with the SHA-256 digest printed by the CLI export command.
+
 Open **Browse all events** for the full event picker and phases, or expand **Source code and evidence** to read the full paraphrase and see the diff. **Report view** opens the plain listing, where each finding links to its recorded reading, log, Author decision and follow-up when available. Reduced motion follows the operating system and can also be enabled in the viewer.
 
 This build accepts `?demo=reading`, `?demo=finding`, and `?demo=decision` on the viewer URL. These links open the corresponding moment in the bundled record so a reviewer can go straight to the evidence.

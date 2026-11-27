@@ -1,10 +1,35 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 const realText = readFileSync(
   new URL("../public/demo/report.json", import.meta.url),
   "utf8",
 );
+
+test("JSON download preserves the bundled export and a replacement's original bytes", async ({ page }) => {
+  const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+  const downloadDigest = async () => {
+    const pending = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download JSON" }).click();
+    return digest(readFileSync((await (await pending).path())!));
+  };
+
+  await page.goto("/?demo=decision");
+  await page.getByRole("button", { name: "Report view" }).click();
+  expect(await downloadDigest()).toBe(digest(Buffer.from(realText)));
+
+  const replacement = JSON.parse(realText);
+  replacement.inspection.title = "Test-only replacement inspection";
+  const original = Buffer.from(`\uFEFF${JSON.stringify(replacement)}\r\n`);
+  await page.getByLabel("Choose inspection report").setInputFiles({
+    name: "replacement.json",
+    mimeType: "application/json",
+    buffer: original,
+  });
+  await expect(page.getByRole("heading", { name: "Test-only replacement inspection" })).toBeVisible();
+  expect(await downloadDigest()).toBe(digest(original));
+});
 
 test("a failed upload lets readers return to the same inspection moment", async ({ page }) => {
   const stage = page.getByRole("region", { name: "Inspection stage" });
@@ -31,8 +56,8 @@ test("canceling a replacement upload preserves the current inspection moment", a
   await expect(stage.getByText("The Author waived D001.")).toBeVisible();
 
   await page.evaluate(() => {
-    const read = File.prototype.text;
-    File.prototype.text = async function (this: File) {
+    const read = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = async function (this: File) {
       if (this.name !== "replacement.json") return read.call(this);
       await new Promise<void>((resolve) => {
         window.addEventListener("test-release-replacement", () => resolve(), { once: true });
@@ -67,8 +92,8 @@ test("a timed-out replacement cannot replace the current inspection", async ({ p
   await expect(stage.getByText("The Author waived D001.")).toBeVisible();
   await page.clock.install();
   await page.evaluate(() => {
-    const read = File.prototype.text;
-    File.prototype.text = async function (this: File) {
+    const read = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = async function (this: File) {
       if (this.name !== "slow.json") return read.call(this);
       await new Promise<void>((resolve) => {
         window.addEventListener("test-release-slow-report", () => resolve(), { once: true });

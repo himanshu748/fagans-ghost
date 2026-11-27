@@ -63,7 +63,7 @@ export async function fetchReport(
   input: string,
   base: string,
   signal: AbortSignal,
-): Promise<string> {
+): Promise<ArrayBuffer> {
   const response = await fetch(reportUrl(input, base), {
     signal,
     redirect: "error",
@@ -97,7 +97,7 @@ export async function fetchReport(
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder().decode(bytes);
+  return bytes.buffer;
 }
 
 export function atEvent(report: Report, cursor: number) {

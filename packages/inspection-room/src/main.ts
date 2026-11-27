@@ -95,7 +95,7 @@ osMotion.addEventListener("change", () => {
   render();
 });
 applyMotion();
-let report: Report | null = null;
+let opened: { report: Report; bytes: ArrayBuffer; name: string } | null = null;
 let cursor = 0;
 let plain = false;
 let playing = false;
@@ -106,7 +106,6 @@ let generation = 0;
 let controller: AbortController | undefined;
 let selectedUnit: string | null = null;
 let selectedFinding: string | null = null;
-let sourceName = "";
 let loading = false;
 let error = "";
 type DemoHighlight = "reading" | "finding" | "decision";
@@ -124,7 +123,7 @@ function abortLoading() {
 function reset() {
   pause();
   abortLoading();
-  report = null;
+  opened = null;
   cursor = 0;
   plain = false;
   selectedUnit = null;
@@ -136,6 +135,7 @@ function reset() {
   render();
 }
 function step(delta: number) {
+  const report = opened?.report;
   if (!report) return;
   selectedUnit = null;
   selectedFinding = null;
@@ -144,6 +144,7 @@ function step(delta: number) {
   render();
 }
 function play() {
+  const report = opened?.report;
   if (!report || plain || report.events.length < 2) return;
   if (playing) pause();
   else {
@@ -154,7 +155,7 @@ function play() {
   render();
 }
 async function load(
-  read: (signal: AbortSignal) => Promise<string>,
+  read: (signal: AbortSignal) => Promise<ArrayBuffer>,
   name: string,
   highlight?: DemoHighlight,
 ) {
@@ -172,20 +173,20 @@ async function load(
   render();
   let onAbort: (() => void) | undefined;
   try {
-    // A local File.text() read does not observe the signal.
+    // A local File.arrayBuffer() read does not observe the signal.
     const aborted = new Promise<never>((_, reject) => {
       onAbort = () => reject(signal.reason);
       signal.addEventListener("abort", onAbort, { once: true });
     });
-    const next = loadReport(await Promise.race([read(signal), aborted]));
+    const bytes = await Promise.race([read(signal), aborted]);
+    const next = loadReport(new TextDecoder().decode(bytes));
     if (current !== generation) return;
-    report = next;
+    opened = { report: next, bytes, name };
     cursor = highlight ? Math.max(0, replayHighlights(next)[highlight]) : 0;
     selectedUnit = null;
     selectedFinding = null;
     eventsOpen = false;
     evidenceOpen = false;
-    sourceName = name;
     live.textContent = `Loaded ${next.inspection.title}. ${next.packet.units.length} reading units.`;
   } catch (e) {
     if (current !== generation) return;
@@ -208,7 +209,7 @@ function openFile(file: File) {
   void load(async () => {
     if (file.size > MAX_BYTES)
       throw new Error("Report exceeds the 10 MiB limit.");
-    return file.text();
+    return file.arrayBuffer();
   }, file.name);
 }
 const fileInput = el("input");
@@ -234,7 +235,7 @@ const openDemo = (highlight?: DemoHighlight) =>
     highlight,
   );
 const demo = () => openDemo();
-function download(name: string, data: string, type: string) {
+function download(name: string, data: BlobPart, type: string) {
   const url = URL.createObjectURL(new Blob([data], { type }));
   const a = el("a");
   a.href = url;
@@ -409,17 +410,17 @@ function render() {
       ? document.activeElement.dataset["focus"]
       : undefined;
   main.replaceChildren();
-  root.classList.toggle("room-view", !!report && !loading && !error && !plain);
+  root.classList.toggle("room-view", !!opened && !loading && !error && !plain);
   viewButton.textContent = plain ? "Room view" : "Report view";
   viewButton.setAttribute("aria-pressed", String(plain));
-  viewButton.disabled = !report || loading || !!error;
+  viewButton.disabled = !opened || loading || !!error;
   if (loading) {
     const s = el("section", "", "notice");
     s.append(
       el("h1", "Opening the record…"),
       el("p", "Reading and validating the inspection."),
       button("Cancel loading", () => {
-        if (!report) {
+        if (!opened) {
           reset();
           return;
         }
@@ -437,7 +438,7 @@ function render() {
     s.append(
       el("h1", "The record could not be opened"),
       el("p", error),
-      report
+      opened
         ? button("Return to current report", () => {
             error = "";
             render();
@@ -448,17 +449,17 @@ function render() {
     main.append(s);
     return;
   }
-  if (!report) {
+  if (!opened) {
     landing();
     return;
   }
-  const r = report;
+  const { report: r, bytes, name } = opened;
   const title = el("section", "", "inspection-heading");
   const caseDetails = el("div", "", "case-details");
   const caseTag = el("div", "", "case-tag");
   caseTag.append(
     el("span", r.inspection.id.toUpperCase(), "case-number"),
-    el("span", sourceName, "case-source"),
+    el("span", name, "case-source"),
   );
   caseDetails.append(
     caseTag,
@@ -483,7 +484,7 @@ function render() {
     button("Download JSON", () =>
       download(
         `${r.inspection.id}.json`,
-        JSON.stringify(r, null, 2),
+        bytes,
         "application/json",
       ),
     ),
@@ -1213,7 +1214,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     help.showModal();
   }
-  if (!report) return;
+  if (!opened) return;
   if (e.key.toLowerCase() === "r") {
     e.preventDefault();
     pause();
