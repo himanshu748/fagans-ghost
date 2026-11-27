@@ -130,6 +130,15 @@ describe("Inspection Room report boundary", () => {
       "chronological",
     );
   });
+  it("rejects findings whose source location does not belong to their reading unit", () => {
+    const wrongFile = structuredClone(report);
+    wrongFile.defects.defects[0]!.location.file = "elsewhere.ts";
+    expect(() => loadReport(JSON.stringify(wrongFile))).toThrow("D001 has an invalid source location");
+
+    const outsideUnit = structuredClone(report);
+    outsideUnit.defects.defects[0]!.location.lineEnd = 1_000_000;
+    expect(() => loadReport(JSON.stringify(outsideUnit))).toThrow("D001 has an invalid source location");
+  });
   it("IR-R4 uses event sequence when timestamps tie", () => {
     const tied = structuredClone(report);
     const at = tied.events[0]!.at;

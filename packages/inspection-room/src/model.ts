@@ -2,6 +2,7 @@ import {
   parseReport,
   renderReportTxt,
 } from "../../fagan-mcp/src/core/report.js";
+import { checkDefectLocation } from "../../fagan-mcp/src/core/defects.js";
 import type {
   Report,
   Defect,
@@ -32,6 +33,13 @@ export function loadReport(text: string): Report {
     report.defects.defects.some((d) => !units.has(d.unitId))
   )
     throw new Error("Report refers to a missing reading unit.");
+  for (const defect of report.defects.defects) {
+    try {
+      checkDefectLocation(report.packet, { ...defect.location, unitId: defect.unitId });
+    } catch (cause) {
+      throw new Error(`Finding ${defect.id} has an invalid source location.`, { cause });
+    }
+  }
   if (
     report.events.some(
       (event, i) =>
