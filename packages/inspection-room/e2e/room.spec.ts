@@ -51,6 +51,29 @@ test("keyboard focus stays on the selected event in the replay ledger", async ({
   await expect(third).toBeFocused({ timeout: 2000 });
 });
 
+test("Space operates the disclosure controls without starting replay", async ({ page }) => {
+  await page.goto("/?demo=reading");
+  const controls = page.getByRole("region", { name: "Playback controls" });
+  const play = controls.getByRole("button", { name: "Play" });
+  await expect(play).toBeVisible();
+
+  for (const label of ["Browse all events", "Source code and evidence"]) {
+    const summary = page.locator("summary").filter({ hasText: label });
+    const disclosure = summary.locator("..");
+    await summary.focus();
+    await page.keyboard.press("Space");
+    await expect(disclosure).toHaveAttribute("open", "", { timeout: 2000 });
+    await expect(summary).toBeFocused();
+    await expect(play).toBeVisible();
+    await page.keyboard.press("Space");
+    await expect(disclosure).not.toHaveAttribute("open", "");
+  }
+
+  await page.locator("main").focus();
+  await page.keyboard.press("Space");
+  await expect(controls.getByRole("button", { name: "Pause" })).toBeVisible();
+});
+
 test("JSON download preserves the bundled export and a replacement's original bytes", async ({ page }) => {
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const downloadDigest = async () => {
