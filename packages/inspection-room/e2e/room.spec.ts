@@ -7,6 +7,32 @@ const realText = readFileSync(
   "utf8",
 );
 
+test("keyboard focus stays in the replay transport at both endpoints", async ({ page }) => {
+  await page.goto("/?demo=decision");
+  const controls = page.getByRole("region", { name: "Playback controls" });
+  const scrubber = controls.getByRole("slider", { name: "Replay position" });
+  const previous = controls.getByRole("button", { name: "← Previous" });
+  const next = controls.getByRole("button", { name: "Next →" });
+
+  await scrubber.focus();
+  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowLeft");
+  await next.focus();
+  await page.keyboard.press("Enter");
+  await expect(controls.locator(".event-count")).toHaveText("59 / 59 · Metrics measured");
+  await expect(next).toBeDisabled();
+  await expect(previous).toBeFocused({ timeout: 2000 });
+
+  await scrubber.focus();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  await previous.focus();
+  await page.keyboard.press("Enter");
+  await expect(controls.locator(".event-count")).toHaveText("1 / 59 · Inspection opened");
+  await expect(previous).toBeDisabled();
+  await expect(next).toBeFocused({ timeout: 2000 });
+});
+
 test("JSON download preserves the bundled export and a replacement's original bytes", async ({ page }) => {
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const downloadDigest = async () => {

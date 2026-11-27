@@ -508,10 +508,14 @@ function render(focusLoading = false) {
   main.append(title);
   if (plain) plainReport(r);
   else room(r, actions);
-  if (focused)
-    main
-      .querySelector<HTMLElement>(`[data-focus="${focused}"]`)
-      ?.focus({ preventScroll: true });
+  if (focused) {
+    let target = main.querySelector<HTMLElement>(`[data-focus="${focused}"]`);
+    if (target?.matches(":disabled")) {
+      if (focused === "previous") target = main.querySelector('[data-focus="next"]');
+      if (focused === "next") target = main.querySelector('[data-focus="previous"]');
+    }
+    target?.focus({ preventScroll: true });
+  }
 }
 function landing() {
   const hero = el("section", "", "hero");
