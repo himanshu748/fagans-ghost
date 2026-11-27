@@ -78,7 +78,16 @@ npm run check:demo
 Open the [public viewer](https://himanshu748.github.io/fagans-ghost/) in a signed-out
 browser, load the demo, and follow the inspection through its recorded waiver.
 Use the reviewed GitHub Pages workflow if the hosted viewer needs refreshing
-after an app change. Keep the demo and repository available through judging.
+after an app change. Once Pages reports success, run `npm run check:hosted` from
+the same built checkout. It compares the public page, bundles and inspection
+exports with the local production files and reports any mismatches. Keep the
+demo and repository available through judging.
+
+On November 27, 2026, the public viewer loaded without authentication. The
+walkthrough reached R023, D001, the Author's waiver, the passing follow-up and
+the Green-bar listing in Report view. The hosted JSON and text matched the
+tracked inspection exports. That build did not yet have the per-finding replay
+trail from [PR #18](https://github.com/himanshu748/fagans-ghost/pull/18).
 
 The recorded inspection used Codex role agents. The [Kiro usage record](KIRO_USAGE.md)
 documents the separate Kiro implementation, delegation and hook experiments.

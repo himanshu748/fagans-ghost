@@ -18,6 +18,7 @@
     "test:e2e": "npm run test:e2e --workspace inspection-room",
     "copy:demo": "node scripts/copy-demo.mjs",
     "check:demo": "node scripts/check-demo.mjs",
+    "check:hosted": "node scripts/check-hosted.mjs",
     "check:repo": "node scripts/check-repo.mjs",
     "build:power": "node scripts/build-power.mjs",
     "test:power": "node scripts/test-power.mjs"
