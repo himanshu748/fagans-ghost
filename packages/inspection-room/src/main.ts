@@ -10,6 +10,7 @@ import {
   fmt,
   loadReport,
   MAX_BYTES,
+  ReportRequestError,
   replayHighlights,
   renderReportTxt,
   type Report,
@@ -108,6 +109,7 @@ let selectedUnit: string | null = null;
 let selectedFinding: string | null = null;
 let loading = false;
 let error = "";
+let retryLoad: (() => void) | null = null;
 type DemoHighlight = "reading" | "finding" | "decision";
 function pause() {
   playing = false;
@@ -131,6 +133,7 @@ function reset() {
   eventsOpen = false;
   evidenceOpen = false;
   error = "";
+  retryLoad = null;
   planchetteAt = CENTER;
   render();
 }
@@ -170,6 +173,7 @@ async function load(
   );
   loading = true;
   error = "";
+  retryLoad = null;
   render();
   let onAbort: (() => void) | undefined;
   try {
@@ -190,8 +194,10 @@ async function load(
     live.textContent = `Loaded ${next.inspection.title}. ${next.packet.units.length} reading units.`;
   } catch (e) {
     if (current !== generation) return;
+    if (signal.aborted || e instanceof ReportRequestError)
+      retryLoad = () => void load(read, name, highlight);
     error = signal.aborted
-      ? "Loading stopped or timed out. Retry or open a local report."
+      ? "Loading stopped or timed out."
       : e instanceof Error
         ? e.message
         : String(e);
@@ -435,12 +441,13 @@ function render() {
   if (error) {
     const s = el("section", "", "notice error");
     s.setAttribute("role", "alert");
+    s.append(el("h1", "The record could not be opened"), el("p", error));
+    if (retryLoad) s.append(button("Retry report", retryLoad));
     s.append(
-      el("h1", "The record could not be opened"),
-      el("p", error),
       opened
         ? button("Return to current report", () => {
             error = "";
+            retryLoad = null;
             render();
             main.focus();
           })
