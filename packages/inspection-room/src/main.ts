@@ -1242,15 +1242,11 @@ document.addEventListener("keydown", (e) => {
     plain = !plain;
     render();
   }
-  if (
-    !plain && e.key === " " &&
-    !(e.target instanceof HTMLButtonElement) &&
-    !(e.target instanceof HTMLAnchorElement)
-  ) {
+  const target = e.target instanceof HTMLElement ? e.target : null;
+  if (!plain && e.key === " " && !target?.closest("button, a, summary")) {
     e.preventDefault();
     play();
   }
-  const target = e.target instanceof HTMLElement ? e.target : null;
   const inSource = target?.closest(".code-block, .greenbar");
   const findingId = target?.closest<HTMLElement>("[data-finding]")?.dataset["finding"];
   if ((e.key === "ArrowUp" || e.key === "ArrowDown") && (!inSource || findingId)) {
