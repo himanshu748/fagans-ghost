@@ -165,6 +165,31 @@ test("retrying a remote report preserves the requested evidence link", async ({ 
   expect(requests).toBe(2);
 });
 
+test("retrying also recovers when a report download is interrupted after headers", async ({ page }) => {
+  await page.addInitScript(() => {
+    const fetch = window.fetch.bind(window);
+    let interrupted = false;
+    window.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (interrupted || !url.endsWith("/demo/report.json")) return fetch(input, init);
+      interrupted = true;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("{"));
+        },
+        pull(controller) {
+          controller.error(new TypeError("Connection interrupted"));
+        },
+      });
+      return Promise.resolve(new Response(body));
+    };
+  });
+  await page.goto("/?demo=decision");
+  await expect(page.getByRole("alert")).toBeVisible();
+  await page.getByRole("button", { name: "Retry report" }).click();
+  await expect(page.getByRole("region", { name: "Inspection stage" }).getByText("The Author waived D001.")).toBeVisible();
+});
+
 test("a finding links from the report to its exact evidence in the replay", async ({ page }) => {
   await page.goto("/?demo=finding");
   const report = page.getByRole("button", { name: "Report view" });

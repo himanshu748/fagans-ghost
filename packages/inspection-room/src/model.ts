@@ -88,7 +88,10 @@ export async function fetchReport(
   let total = 0;
   try {
     while (true) {
-      const next = await reader.read();
+      const next = await reader.read().catch((cause: unknown) => {
+        if (signal.aborted) throw cause;
+        throw new ReportRequestError("The report connection stopped before the download finished.", { cause });
+      });
       if (next.done) break;
       total += next.value.byteLength;
       if (total > MAX_BYTES)
@@ -96,7 +99,8 @@ export async function fetchReport(
       chunks.push(next.value);
     }
   } finally {
-    await reader.cancel();
+    // An errored stream also rejects on cancel. Keep the original read error.
+    await reader.cancel().catch(() => {});
   }
   const bytes = new Uint8Array(total);
   let offset = 0;
