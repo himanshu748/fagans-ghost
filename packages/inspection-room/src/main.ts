@@ -898,8 +898,10 @@ function room(r: Report, actions: HTMLDivElement) {
     if (event) progress.setAttribute("aria-valuetext", `Event ${index + 1} of ${r.events.length}, ${eventName(event.tool)}`);
   };
   updateProgress();
+  progress.addEventListener("focus", holdFrame);
+  progress.addEventListener("pointerdown", holdFrame);
   progress.addEventListener("input", () => {
-    pause();
+    holdFrame();
     updateProgress();
   });
   progress.addEventListener("change", () => jumpToEvent(progress.valueAsNumber));
