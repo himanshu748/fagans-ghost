@@ -1243,11 +1243,11 @@ document.addEventListener("keydown", (e) => {
     render();
   }
   const target = e.target instanceof HTMLElement ? e.target : null;
-  if (!plain && e.key === " " && !target?.closest("button, a, summary")) {
+  const inSource = target?.closest(".code-block, .greenbar");
+  if (!plain && e.key === " " && !inSource && !target?.closest("button, a, summary")) {
     e.preventDefault();
     play();
   }
-  const inSource = target?.closest(".code-block, .greenbar");
   const findingId = target?.closest<HTMLElement>("[data-finding]")?.dataset["finding"];
   if ((e.key === "ArrowUp" || e.key === "ArrowDown") && (!inSource || findingId)) {
     const report = opened.report;
