@@ -92,6 +92,19 @@ test("Space operates the disclosure controls without starting replay", async ({ 
   await expect(controls.getByRole("button", { name: "Pause" })).toBeVisible();
 });
 
+test("Space scrolls focused source code without starting replay", async ({ page }) => {
+  await page.goto("/?demo=reading");
+  await page.locator("summary").filter({ hasText: "Source code and evidence" }).click();
+  const source = page.getByRole("region", { name: /^Code for / });
+  await source.evaluate((panel) => { panel.style.maxHeight = "96px"; });
+  await source.focus();
+  await page.keyboard.press("Space");
+
+  await expect(source).toBeFocused();
+  await expect.poll(() => source.evaluate((panel) => panel.scrollTop)).toBeGreaterThan(0);
+  await expect(page.getByRole("button", { name: "Play replay" })).toBeVisible();
+});
+
 test("JSON download preserves the bundled export and a replacement's original bytes", async ({ page }) => {
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const downloadDigest = async () => {
