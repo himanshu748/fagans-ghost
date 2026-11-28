@@ -142,6 +142,26 @@ test("the event picker stays open for interaction while replay is running", asyn
   await expect(controls.locator(".event-count")).toHaveText("1 / 59 · Inspection opened");
 });
 
+test("the replay position slider pauses playback and stays usable", async ({ page }) => {
+  await page.clock.install({ time: new Date(2026, 10, 28, 12) });
+  await page.clock.pauseAt(new Date(2026, 10, 28, 12, 1));
+  await page.goto("/?demo=reading");
+  const controls = page.getByRole("region", { name: "Playback controls" });
+  const event = await controls.locator(".event-count").textContent();
+  await controls.getByRole("button", { name: "Play replay" }).click();
+  const position = controls.getByRole("slider", { name: "Replay position" });
+  await position.evaluate((element) => element.setAttribute("data-original-slider", "true"));
+  await position.focus();
+  await page.clock.fastForward(3000);
+
+  await expect(position).toBeFocused();
+  await expect(position).toHaveAttribute("data-original-slider", "true");
+  await expect(controls.locator(".event-count")).toHaveText(event ?? "");
+  await expect(controls.getByRole("button", { name: "Play replay" })).toBeVisible();
+  await position.press("Home");
+  await expect(controls.locator(".event-count")).toHaveText("1 / 59 · Inspection opened");
+});
+
 test("JSON download preserves the bundled export and a replacement's original bytes", async ({ page }) => {
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const downloadDigest = async () => {
