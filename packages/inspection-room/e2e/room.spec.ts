@@ -105,6 +105,24 @@ test("Space scrolls focused source code without starting replay", async ({ page 
   await expect(page.getByRole("button", { name: "Play replay" })).toBeVisible();
 });
 
+test("inspecting source code pauses replay without losing focus", async ({ page }) => {
+  await page.clock.install({ time: new Date(2026, 10, 28, 12) });
+  await page.clock.pauseAt(new Date(2026, 10, 28, 12, 1));
+  await page.goto("/?demo=reading");
+  await page.locator("summary").filter({ hasText: "Source code and evidence" }).click();
+  const controls = page.getByRole("region", { name: "Playback controls" });
+  const event = await controls.locator(".event-count").textContent();
+  await controls.getByRole("button", { name: "Play replay" }).click();
+  await expect(controls.getByRole("button", { name: "Pause" })).toBeVisible();
+
+  const code = page.getByRole("region", { name: /^Code for / });
+  await code.focus();
+  await page.clock.fastForward(3000);
+  await expect(code).toBeFocused();
+  await expect(controls.locator(".event-count")).toHaveText(event ?? "");
+  await expect(controls.getByRole("button", { name: "Play replay" })).toBeVisible();
+});
+
 test("JSON download preserves the bundled export and a replacement's original bytes", async ({ page }) => {
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const downloadDigest = async () => {

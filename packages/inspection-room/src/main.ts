@@ -1035,6 +1035,12 @@ function room(r: Report, actions: HTMLDivElement) {
     code.tabIndex = 0;
     code.setAttribute("role", "region");
     code.setAttribute("aria-label", `Code for ${unit.id}`);
+    code.addEventListener("focusin", () => {
+      if (!playing) return;
+      // Replay replaces the evidence panel on each step. Hold the frame while it is being inspected.
+      pause();
+      toggle.textContent = "Play replay";
+    });
     const fileHeader = el("div", "", "code-file");
     const file = el("span", unit.file, "file-path");
     file.title = unit.file;
