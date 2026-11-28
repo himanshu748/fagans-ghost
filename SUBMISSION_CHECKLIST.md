@@ -17,7 +17,7 @@ The [official rules](https://kiroween.devpost.com/rules), checked November 25, 2
 | Kiro write-up | [KIRO_USAGE.md](KIRO_USAGE.md); includes actual Kiro experiments, Codex provenance and missing IDE checks |
 | Category | Resurrection |
 | Student bonus | Candidate only; eligibility and personal fields below remain unconfirmed |
-| Blog / Social Blitz | Optional, Author-written and Author-published; URLs pending if pursued |
+| Blog / Social Blitz | [Blog draft](docs/bonus/BLOG_POST.md) and [X and LinkedIn drafts](docs/bonus/SOCIAL_BLITZ.md) ready for Author review; public URLs pending if pursued |
 | Final Devpost submission | [Submitted and verified on Devpost](https://devpost.com/software/fagan-s-ghost) |
 
 ## Product and evidence gates
@@ -30,7 +30,8 @@ The [official rules](https://kiroween.devpost.com/rules), checked November 25, 2
 - [x] Check the final closed export in desktop/mobile layouts, keyboard mode, reduced motion and Report view, including its actual waiver and follow-up.
 - [x] Confirm local checks and a clean staged-source snapshot: fresh `npm ci` and production build pass. See `docs/verification.md`.
 - [ ] Inspect tracked files and exports for secrets or private source before publishing.
-- [ ] Complete the hosted Inspection Room walkthrough and confirm the public video plays while signed out.
+- [x] Verify the public Inspection Room and video without signing in. The [November 28 Pages deployment](https://github.com/himanshu748/fagans-ghost/actions/runs/46102734999) published `2456c09`. All eight hosted files matched the local build byte for byte over HTTPS. In clean desktop (1440 × 900) and touch-phone (390 × 844) Chromium contexts serving those same bytes locally, the walkthrough reached events 31, 52 and 58, displayed the D001 waiver, and downloaded the original JSON without horizontal page overflow. The anonymous YouTube player reported the 1:43 video as playable.
+- [x] Rerun local verification for `2456c09`. Build, repository and demo checks passed. Unit tests passed with 239 passes and one existing skip. Playwright passed 45 cases and skipped the desktop-only event ledger case at phone width.
 - [ ] Reconcile story, README, video and Devpost form against the final behavior. Keep the pre-existing-resource and AI-assistance disclosures.
 
 ## Judging path
