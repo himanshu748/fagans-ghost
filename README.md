@@ -10,7 +10,7 @@ A local, deterministic MCP server enforces the phases and keeps the record. The 
 
 ![The stage at event 31, with an excerpt from the Reader's actual U023 paraphrase and a highlighted seat](docs/screenshots/stage-desktop.png)
 
-In the hosted viewer, select **Enter the demo inspection**, then **Read the change**, **Review the finding**, and **See the decision**. The replay shows the Author's false-positive waiver for D001. The video labels the [recorded Codex inspection and separate live Kiro hook experiments](KIRO_USAGE.md). [View the Kiroween entry](https://devpost.com/software/fagan-s-ghost).
+In the hosted viewer, select **Enter the demo inspection** or open a specific moment: [Reading](https://himanshu748.github.io/fagans-ghost/?demo=reading), [Finding](https://himanshu748.github.io/fagans-ghost/?demo=finding), [Decision](https://himanshu748.github.io/fagans-ghost/?demo=decision). The replay shows the Author's false-positive waiver for D001. The video labels the [recorded Codex inspection and separate live Kiro hook experiments](KIRO_USAGE.md). [View the Kiroween entry](https://devpost.com/software/fagan-s-ghost).
 
 ## Open the Inspection Room
 
@@ -83,6 +83,19 @@ Open the returned `report.html` path in a browser. The file includes source
 excerpts and findings, so review its contents before sharing it.
 
 For a new real inspection, `node scripts/mcp-call.mjs open_inspection '<JSON arguments>'` calls the same stdio server. Supply `role`, `title`, `base` and `head`. This starts an inspection. The participants then provide readings and findings. Metrics and export calls append to the inspection log, so use the saved reports when replaying the bundled demo. See [tool schemas and roles](packages/fagan-mcp/src/server/server.ts).
+
+## Build and use the npm archive
+
+From this checkout, build the CLI and inspect the package before using it elsewhere:
+
+```sh
+npm ci
+npm run build --workspace fagan-mcp
+node scripts/test-package.mjs
+npm pack --workspace fagan-mcp
+```
+
+The check launches the packaged CLI and exports HTML from a disposable copy of the recorded inspection. It checks the printed hash and file size and leaves the original log intact. The archive contains the CLI, checklists and license. See the [package README](packages/fagan-mcp/README.md) for installing the archive and exporting a report from a target checkout.
 
 ## Bring the ritual to another repository
 
