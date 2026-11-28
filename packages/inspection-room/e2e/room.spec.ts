@@ -123,6 +123,25 @@ test("inspecting source code pauses replay without losing focus", async ({ page 
   await expect(controls.getByRole("button", { name: "Play replay" })).toBeVisible();
 });
 
+test("the event picker stays open for interaction while replay is running", async ({ page }) => {
+  await page.clock.install({ time: new Date(2026, 10, 28, 12) });
+  await page.clock.pauseAt(new Date(2026, 10, 28, 12, 1));
+  await page.goto("/?demo=reading");
+  await page.locator("summary").filter({ hasText: "Browse all events" }).click();
+  const controls = page.getByRole("region", { name: "Playback controls" });
+  await controls.getByRole("button", { name: "Play replay" }).click();
+  const picker = controls.getByLabel("Jump to event");
+  await picker.evaluate((element) => element.setAttribute("data-original-picker", "true"));
+  await picker.focus();
+  await page.clock.fastForward(3000);
+
+  await expect(picker).toBeFocused();
+  await expect(picker).toHaveAttribute("data-original-picker", "true");
+  await expect(controls.getByRole("button", { name: "Play replay" })).toBeVisible();
+  await picker.selectOption("0");
+  await expect(controls.locator(".event-count")).toHaveText("1 / 59 · Inspection opened");
+});
+
 test("JSON download preserves the bundled export and a replacement's original bytes", async ({ page }) => {
   const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const downloadDigest = async () => {
