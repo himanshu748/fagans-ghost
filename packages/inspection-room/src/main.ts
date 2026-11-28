@@ -874,6 +874,12 @@ function room(r: Report, actions: HTMLDivElement) {
   const toggle = button(playing ? "Pause" : "Play replay", play, "primary");
   toggle.dataset["focus"] = "play";
   toggle.disabled = r.events.length < 2;
+  const holdFrame = () => {
+    if (!playing) return;
+    // Replay replaces these controls and the evidence panel on each step.
+    pause();
+    toggle.textContent = "Play replay";
+  };
   const eventCount = state.event
     ? `${cursor + 1} / ${r.events.length} · ${eventName(state.event.tool)}`
     : "No recorded events";
@@ -932,6 +938,7 @@ function room(r: Report, actions: HTMLDivElement) {
   });
   select.value = String(cursor);
   select.disabled = !r.events.length;
+  select.addEventListener("focus", holdFrame);
   select.addEventListener("change", () => jumpToEvent(Number(select.value)));
   const position = el("span", eventCount, "event-count");
   transport.append(buttons, position, allEvents);
@@ -1035,12 +1042,7 @@ function room(r: Report, actions: HTMLDivElement) {
     code.tabIndex = 0;
     code.setAttribute("role", "region");
     code.setAttribute("aria-label", `Code for ${unit.id}`);
-    code.addEventListener("focusin", () => {
-      if (!playing) return;
-      // Replay replaces the evidence panel on each step. Hold the frame while it is being inspected.
-      pause();
-      toggle.textContent = "Play replay";
-    });
+    code.addEventListener("focusin", holdFrame);
     const fileHeader = el("div", "", "code-file");
     const file = el("span", unit.file, "file-path");
     file.title = unit.file;
